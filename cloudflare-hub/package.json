@@ -1,0 +1,25 @@
+{
+  "name": "cloudflare-hub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply tokendash --local",
+    "db:migrate:remote": "wrangler d1 migrations apply tokendash --remote",
+    "test": "node --test test/",
+    "typecheck": "tsc --noEmit",
+    "rotate-key": "node scripts/rotate-key.mjs"
+  },
+  "dependencies": {
+    "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250701.0",
+    "esbuild": "^0.25.0",
+    "miniflare": "^4.20250701.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.1.0"
+  }
+}
