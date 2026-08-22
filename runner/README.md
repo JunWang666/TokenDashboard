@@ -21,7 +21,7 @@ docker run -d --name tokendash-runner --restart unless-stopped \
   -e CF_ACCESS_CLIENT_ID=xxx.access \
   -e CF_ACCESS_CLIENT_SECRET=yyy \
   -e PROVIDERS=kimi,codex \
-  ghcr.io/jungoudai/tokendash-runner:latest
+  ghcr.io/junwang666/tokendash-runner:latest
 ```
 
 > 仓库为私有时，拉取前需 `echo <PAT> | docker login ghcr.io -u <用户名> --password-stdin`
