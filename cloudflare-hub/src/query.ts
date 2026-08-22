@@ -103,20 +103,22 @@ export async function timeseries(c: Context<{ Bindings: Env }>): Promise<Respons
   return c.json({ interval, group_by: groupBy, from, to, rows });
 }
 
-/** GET /quota/current —— 每个 (provider, metric) 最新快照 */
+/** GET /quota/current —— 每个 (provider, metric, account) 最新快照；只返回仍有凭证的 key */
 export async function quotaCurrent(c: Context<{ Bindings: Env }>): Promise<Response> {
   const env = c.env;
   const { results } = await env.DB.prepare(
     `SELECT q.* FROM quota_snapshots q
      INNER JOIN (
-       SELECT provider, metric, MAX(id) AS id FROM quota_snapshots GROUP BY provider, metric
+       SELECT provider, metric, account, MAX(id) AS id FROM quota_snapshots GROUP BY provider, metric, account
      ) m ON q.id = m.id
-     ORDER BY q.provider, q.metric`,
+     WHERE EXISTS (SELECT 1 FROM credentials c WHERE c.provider = q.provider AND c.name = q.account)
+     ORDER BY q.provider, q.account, q.metric`,
   ).all<Record<string, unknown>>();
   return c.json({
     rows: results.map((r) => ({
       provider: r.provider,
       metric: r.metric,
+      account: r.account ?? "",
       value: Number(r.value),
       limit_value: r.limit_value == null ? null : Number(r.limit_value),
       unit: r.unit ?? null,
@@ -126,14 +128,15 @@ export async function quotaCurrent(c: Context<{ Bindings: Env }>): Promise<Respo
   });
 }
 
-/** GET /quota/history?provider=&metric=&from=&to= */
+/** GET /quota/history?provider=&metric=&account=&from=&to= */
 export async function quotaHistory(c: Context<{ Bindings: Env }>): Promise<Response> {
   const env = c.env;
   const provider = c.req.query("provider");
   const metric = c.req.query("metric");
+  const account = c.req.query("account");
   const { from, to } = range(c);
 
-  let sql = `SELECT provider, metric, value, limit_value, unit, reset_at, captured_at
+  let sql = `SELECT provider, metric, account, value, limit_value, unit, reset_at, captured_at
              FROM quota_snapshots WHERE 1=1`;
   const args: (string | number)[] = [];
   if (provider) {
@@ -143,6 +146,10 @@ export async function quotaHistory(c: Context<{ Bindings: Env }>): Promise<Respo
   if (metric) {
     sql += " AND metric = ?";
     args.push(metric);
+  }
+  if (account !== undefined) {
+    sql += " AND account = ?";
+    args.push(account);
   }
   if (from) {
     sql += " AND captured_at >= ?";
@@ -156,6 +163,60 @@ export async function quotaHistory(c: Context<{ Bindings: Env }>): Promise<Respo
 
   const { results } = await env.DB.prepare(sql).bind(...args).all<Record<string, unknown>>();
   return c.json({ rows: results });
+}
+
+/** GET /bootstrap —— Overview 首屏聚合：今日逐小时用量 + 最新额度，一次请求 */
+export async function bootstrap(c: Context<{ Bindings: Env }>): Promise<Response> {
+  const env = c.env;
+  const today = new Date().toISOString().slice(0, 10);
+  const from = `${today}T00`;
+
+  const [tsRes, quotaRes] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT bucket_hour AS time, provider AS series, ${TOKEN_COLS}
+       FROM usage_hourly WHERE bucket_hour >= ?
+       GROUP BY bucket_hour, provider ORDER BY time`,
+    ).bind(from),
+    env.DB.prepare(
+      `SELECT q.* FROM quota_snapshots q
+       INNER JOIN (
+         SELECT provider, metric, account, MAX(id) AS id FROM quota_snapshots GROUP BY provider, metric, account
+       ) m ON q.id = m.id
+       WHERE EXISTS (SELECT 1 FROM credentials c WHERE c.provider = q.provider AND c.name = q.account)
+       ORDER BY q.provider, q.account, q.metric`,
+    ),
+  ]);
+
+  return c.json({
+    ts: {
+      interval: "hour",
+      group_by: "provider",
+      from,
+      to: null,
+      rows: ((tsRes.results ?? []) as Record<string, unknown>[]).map((r) => ({
+        time: r.time as string,
+        series: r.series as string,
+        input_tokens: Number(r.input_tokens ?? 0),
+        output_tokens: Number(r.output_tokens ?? 0),
+        cache_read_tokens: Number(r.cache_read_tokens ?? 0),
+        cache_write_tokens: Number(r.cache_write_tokens ?? 0),
+        cost_usd: Number(r.cost_usd ?? 0),
+        requests: Number(r.requests ?? 0),
+      })),
+    },
+    quota: {
+      rows: ((quotaRes.results ?? []) as Record<string, unknown>[]).map((r) => ({
+        provider: r.provider,
+        metric: r.metric,
+        account: r.account ?? "",
+        value: Number(r.value),
+        limit_value: r.limit_value == null ? null : Number(r.limit_value),
+        unit: r.unit ?? null,
+        reset_at: r.reset_at ?? null,
+        captured_at: r.captured_at,
+      })),
+    },
+  });
 }
 
 /** GET /devices */

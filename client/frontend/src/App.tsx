@@ -230,7 +230,7 @@ function Settings({ status, onSaved }: { status: Status | null; onSaved: () => v
         <div className="text-sm font-medium">推送凭证到 hub（供 runner 采集额度）</div>
         <div className="flex gap-2">
           <select value={credProvider} onChange={(e) => setCredProvider(e.target.value)} className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm">
-            {["claude", "openai", "deepseek", "glm", "copilot", "cursor"].map((p) => (
+            {["claude", "openai", "deepseek", "glm", "copilot", "cursor", "codex", "kimi"].map((p) => (
               <option key={p}>{p}</option>
             ))}
           </select>

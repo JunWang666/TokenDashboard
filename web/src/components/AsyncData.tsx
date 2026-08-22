@@ -44,11 +44,11 @@ export default function AsyncData<T>({ load, children, refreshMs = 0, className 
 
   if (error) {
     return (
-      <div className={`rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 ${className ?? ""}`}>
+      <div className={`rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-300 ${className ?? ""}`}>
         {error}
       </div>
     );
   }
-  if (!data) return <div className={`animate-pulse text-sm text-slate-500 ${className ?? ""}`}>加载中…</div>;
+  if (!data) return <div className={`animate-pulse text-sm text-slate-400 dark:text-slate-500 ${className ?? ""}`}>加载中…</div>;
   return <div className={className}>{children(data)}</div>;
 }

@@ -21,13 +21,14 @@ function hubAuthHeaders(env: Env): Record<string, string> {
   throw new Error("runner: 需要 HUB_DEV_TOKEN 或 CF_ACCESS_CLIENT_ID/SECRET");
 }
 
-/** 一轮采集：拉凭证 → 各适配器 → 上报快照。返回写入行数 */
+/** 一轮采集：拉凭证 → 各适配器（每把 key 独立采集并打 account 标签）→ 上报快照。返回写入行数 */
 export async function collect(env: Env, f: typeof fetch = fetch): Promise<number> {
   const headers = hubAuthHeaders(env);
 
   const credRes = await f(`${env.HUB_URL}/api/v1/internal/credentials`, { headers });
   if (!credRes.ok) throw new Error(`hub internal/credentials: HTTP ${credRes.status}`);
-  const creds = (await credRes.json()) as Record<string, unknown>;
+  // { provider: [ { name, ...credFields } ] } —— 每个服务商可有多把 key
+  const creds = (await credRes.json()) as Record<string, Array<Record<string, unknown> & { name?: string }>>;
 
   const enabled = (env.PROVIDERS ?? "")
     .split(",")
@@ -35,10 +36,17 @@ export async function collect(env: Env, f: typeof fetch = fetch): Promise<number
     .filter(Boolean);
 
   const rows: QuotaRow[] = [];
-  for (const [provider, cred] of Object.entries(creds)) {
+  for (const [provider, keys] of Object.entries(creds)) {
     if (enabled.length > 0 && !enabled.includes(provider)) continue;
-    if (cred == null || (cred as Record<string, unknown>).__error__) continue;
-    rows.push(...(await runAdapter(provider, cred, f)));
+    if (!Array.isArray(keys)) continue;
+    for (const cred of keys) {
+      if (cred == null || cred.__error__) continue;
+      const account = typeof cred.name === "string" && cred.name ? cred.name : "默认";
+      for (const r of await runAdapter(provider, cred, f)) {
+        r.account = account;
+        rows.push(r);
+      }
+    }
   }
 
   if (rows.length > 0) {

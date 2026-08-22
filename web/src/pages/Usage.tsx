@@ -12,7 +12,11 @@ import {
 import { api } from "../api";
 import AsyncData from "../components/AsyncData";
 import { PROVIDERS, fmtTokens, fmtUsd, providerColor } from "../format";
+import { chartPalette, useTheme } from "../theme";
 import type { TimeseriesResponse } from "../types";
+
+const SELECT_CLS =
+  "rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-slate-700 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300";
 
 const hourToLocal = (iso: string) => {
   const d = new Date(iso);
@@ -41,14 +45,14 @@ export default function Usage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">用量</h1>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">用量</h1>
           <p className="mt-1 text-sm text-slate-500">按服务商 / 模型堆叠的时间序列</p>
         </div>
         <div className="flex items-center gap-2 text-sm">
           <select
             value={interval}
             onChange={(e) => setInterval(e.target.value as "hour" | "day")}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-slate-300 outline-none focus:border-emerald-500"
+            className={SELECT_CLS}
           >
             <option value="day">按天</option>
             <option value="hour">按小时</option>
@@ -56,7 +60,7 @@ export default function Usage() {
           <select
             value={groupBy}
             onChange={(e) => setGroupBy(e.target.value as "provider" | "model")}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-slate-300 outline-none focus:border-emerald-500"
+            className={SELECT_CLS}
           >
             <option value="provider">按服务商</option>
             <option value="model">按模型</option>
@@ -64,7 +68,7 @@ export default function Usage() {
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-slate-300 outline-none focus:border-emerald-500"
+            className={SELECT_CLS}
           >
             <option value={7}>近 7 天</option>
             <option value={14}>近 14 天</option>
@@ -73,7 +77,7 @@ export default function Usage() {
           <select
             value={metric}
             onChange={(e) => setMetric(e.target.value as "tokens" | "cost")}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-slate-300 outline-none focus:border-emerald-500"
+            className={SELECT_CLS}
           >
             <option value="tokens">Token</option>
             <option value="cost">花费</option>
@@ -89,6 +93,8 @@ export default function Usage() {
 }
 
 function Chart({ ts, metric, interval, groupBy }: { ts: TimeseriesResponse; metric: string; interval: string; groupBy: string }) {
+  const theme = useTheme();
+  const pal = chartPalette(theme);
   const seriesNames = useMemo(() => [...new Set(ts.rows.map((r) => r.series))], [ts]);
 
   const data = useMemo(() => {
@@ -114,20 +120,20 @@ function Chart({ ts, metric, interval, groupBy }: { ts: TimeseriesResponse; metr
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900/50">
         <ResponsiveContainer width="100%" height={340}>
           <BarChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "#1e293b" }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={pal.grid} vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: pal.tick, fontSize: 11 }} tickLine={false} axisLine={{ stroke: pal.grid }} />
             <YAxis
-              tick={{ fill: "#64748b", fontSize: 11 }}
+              tick={{ fill: pal.tick, fontSize: 11 }}
               tickLine={false}
               axisLine={false}
               tickFormatter={(v: number) => (metric === "cost" ? `$${v}` : fmtTokens(v))}
             />
             <Tooltip
-              contentStyle={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
-              labelStyle={{ color: "#e2e8f0" }}
+              contentStyle={{ background: pal.tooltipBg, border: `1px solid ${pal.tooltipBorder}`, borderRadius: 8, fontSize: 12 }}
+              labelStyle={{ color: pal.tooltipText }}
               formatter={(value, name) => {
                 const v = Number(value ?? 0);
                 return [metric === "cost" ? fmtUsd(v) : fmtTokens(v), name];
@@ -141,10 +147,10 @@ function Chart({ ts, metric, interval, groupBy }: { ts: TimeseriesResponse; metr
         </ResponsiveContainer>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-800">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-800 bg-slate-900/60 text-xs text-slate-500">
+            <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/60">
               <th className="px-4 py-3 font-medium">{groupBy === "provider" ? "服务商" : "模型"}</th>
               <th className="px-4 py-3 text-right font-medium">总 token</th>
               <th className="px-4 py-3 text-right font-medium">输入</th>
@@ -170,7 +176,7 @@ function Chart({ ts, metric, interval, groupBy }: { ts: TimeseriesResponse; metr
                 { input: 0, output: 0, cr: 0, cw: 0, req: 0, cost: 0 },
               );
               return (
-                <tr key={series} className="border-b border-slate-800/60 hover:bg-slate-900/40">
+                <tr key={series} className="border-b border-slate-100 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-900/40">
                   <td className="px-4 py-2.5">
                     <span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ background: providerColor(series) }} />
                     {series}
@@ -178,10 +184,10 @@ function Chart({ ts, metric, interval, groupBy }: { ts: TimeseriesResponse; metr
                   <td className="px-4 py-2.5 text-right tabular-nums">{fmtTokens(total)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{fmtTokens(r.input)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{fmtTokens(r.output)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-500">{fmtTokens(r.cr)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-500">{fmtTokens(r.cw)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-400 dark:text-slate-500">{fmtTokens(r.cr)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-400 dark:text-slate-500">{fmtTokens(r.cw)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{r.req.toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-emerald-300">{fmtUsd(r.cost)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-300">{fmtUsd(r.cost)}</td>
                 </tr>
               );
             })}

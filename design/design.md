@@ -30,7 +30,8 @@
 |------|------|------|
 | `client/` | 本地桌面（macOS/Windows/Linux），Wails（Go + webview） | 解析本地工具日志，聚合用量，批量上报到 hub；桌面 UI 展示本地数据；可推送 runner 凭证 |
 | `cloudflare-hub/` | Cloudflare Workers + D1 | 数据存储（D1），ingest API + 查询 API + 凭证管理 API |
-| `cloudflare-runner/` | Cloudflare Workers Cron | 定时从 hub 拉取凭证，调用各服务商接口，采集 plan 额度快照 |
+| 内置 runner（hub `src/runner/`） | hub 同进程 cron | 定时从 hub 拉取凭证，调用各服务商接口，采集 plan 额度快照 |
+| `runner/` | 任意机器（Go + Docker） | 同上，承载被对端 WAF 拦截 Workers 出口的 provider（kimi/codex） |
 | `web/` | Cloudflare Pages | Web 仪表盘，展示用量和额度；管理 runner 凭证 |
 
 安全：所有入口都挂在 **Cloudflare Access** 后面，共三种身份：
@@ -99,6 +100,8 @@ CREATE TABLE credentials (
 |----------|--------|------|
 | claude | `session_used_pct` | 5 小时会话窗口已用百分比 |
 | claude | `weekly_used_pct` | 周限额已用百分比 |
+| codex | `session_used_pct`、`weekly_used_pct`、`credits_usd` | 5 小时窗口 / 周限额已用百分比、充值余额 |
+| kimi | `weekly_used_pct`、`session_used_pct` | 周额度 / 5 小时滚动窗口已用百分比 |
 | openai | `balance_usd`、`month_cost_usd` | 余额 / 当月花费 |
 | copilot | `premium_used`、`premium_remaining` | 高级请求额度 |
 | glm | `balance_cny` | API 余额 |
@@ -321,9 +324,9 @@ client/
     uiapi/       # 暴露给 Wails 前端的绑定方法
 ```
 
-## 5. cloudflare-runner（Workers Cron）
+## 5. runner（额度采集）
 
-独立 Worker，`wrangler.toml` 配置 cron（如每 15 分钟）：
+内置 runner 与 hub 同进程（hub Worker 的 cron，如每 15 分钟）：
 
 ```
 crons = ["*/15 * * * *"]
@@ -348,6 +351,8 @@ interface QuotaAdapter {
 
 | 适配器 | 方案 | 凭证 |
 |--------|------|------|
+| codex | `chatgpt.com/backend-api/codex/usage`（非官方；按 `limit_window_seconds` 区分 5 小时/周窗口） | ChatGPT 订阅 OAuth access_token（`~/.codex/auth.json`，有效期约一周，过期重新粘贴；不做 refresh 自动续期，避免使本机 CLI 登录态作废） |
+| kimi | `api.kimi.com/coding/v1/usages`（Kimi Code 订阅；周额度 + 5 小时滚动窗口） | kimi.com/code 控制台的 API Key（sk-kimi-*，与开放平台 key 不互通） |
 | openai | 官方接口：`/v1/organization/costs`、`/v1/organization/usage/completions` | Admin API Key |
 | deepseek | 官方接口：`GET /user/balance` | API Key |
 | glm | bigmodel.cn 余额查询接口 | API Key |
@@ -356,6 +361,12 @@ interface QuotaAdapter {
 | cursor | cursor.com 的 usage 接口（非官方，session cookie） | session cookie |
 
 非官方适配器要做容错：接口变动时记录错误快照（`metric = "scrape_error"`），web 端显示「数据过期/采集失败」而不是空白。
+
+### runner/（Go 独立版）
+
+`api.kimi.com`、`chatgpt.com` 等对端套着 Cloudflare WAF（Bot Management），会拦截**来自 Cloudflare Workers 出口**的请求（数据中心 IP + `CF-Worker` 特征头，403 challenge 页），内置 runner 调这些接口必然失败。因此把这部分 provider 拆到 `runner/`：与内置 runner 同构的 Go 实现（拉凭证 → 适配器 → 上报快照），纯标准库、Docker 单容器部署在非 Cloudflare 网络的机器（NAS/VPS）上，用同一个 runner service token 认证。
+
+分工靠两边的 `PROVIDERS` 白名单：hub `wrangler.toml` 里排除 `kimi,codex`，Go runner 用 `PROVIDERS=kimi,codex`，避免同一 provider 两边采集产生重复快照和成功/失败状态交替。
 
 ## 6. web（Pages 前端）
 
@@ -390,8 +401,8 @@ interface QuotaAdapter {
 ```
 TokenDashboard/
   client/             # 跨平台桌面采集器（Wails + Go）
-  cloudflare-hub/     # Workers + D1
-  cloudflare-runner/  # Workers Cron
+  cloudflare-hub/     # Workers + D1（含合并部署的内置 runner）
+  runner/             # Go 独立额度采集器（kimi/codex，Docker 部署在非 Cloudflare 网络）
   web/                # Pages 前端
   design/             # 本文档
 ```

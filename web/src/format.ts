@@ -1,5 +1,7 @@
 export const PROVIDERS: { id: string; name: string; color: string }[] = [
   { id: "claude", name: "Claude", color: "#d97757" },
+  { id: "codex", name: "Codex", color: "#14b8a6" },
+  { id: "kimi", name: "Kimi", color: "#d946ef" },
   { id: "openai", name: "OpenAI", color: "#10a37f" },
   { id: "copilot", name: "GitHub Copilot", color: "#8957e5" },
   { id: "glm", name: "GLM", color: "#3b82f6" },
@@ -15,6 +17,9 @@ export const providerColor = (id: string) => providerMeta(id).color;
 export function primaryQuotaMetric(provider: string): string {
   switch (provider) {
     case "claude":
+      return "weekly_used_pct";
+    case "codex":
+    case "kimi":
       return "weekly_used_pct";
     case "openai":
       return "month_cost_usd";

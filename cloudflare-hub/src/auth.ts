@@ -146,7 +146,15 @@ declare module "hono" {
   }
 }
 
-/** 全部 /api/v1 接口先过：Access JWT 校验（纵深防御），失败回退到 dev token */
+/** 合并部署时 runner 进程内直调的内部凭证（与加密密钥同源，泄漏即同等后果） */
+function internalPrincipal(c: Context<{ Bindings: Env }>, env: Env): Principal | null {
+  const key = env.CREDENTIALS_KEY;
+  if (!key) return null;
+  if (c.req.header("X-Tokendash-Internal") !== key) return null;
+  return { role: "runner", type: "service", name: "internal-runner", exp: Number.MAX_SAFE_INTEGER };
+}
+
+/** 全部 /api/v1 接口先过：Access JWT 校验（纵深防御），失败回退到内部凭证 / dev token */
 export const authMiddleware = createMiddleware<{ Bindings: Env }>(async (c, next) => {
   const env = c.env;
   const jwt = c.req.header("Cf-Access-Jwt-Assertion");
@@ -159,6 +167,7 @@ export const authMiddleware = createMiddleware<{ Bindings: Env }>(async (c, next
   } catch (e) {
     console.error("jwt verify failed:", e);
   }
+  if (!p) p = internalPrincipal(c, env);
   if (!p) p = devPrincipal(c.req.header("Authorization") ?? "", env);
   if (!p) return c.json({ error: "unauthorized" }, 401);
   c.set("principal", p);

@@ -1,4 +1,5 @@
 import type {
+  BootstrapResponse,
   CredentialsResponse,
   DevicesResponse,
   QuotaCurrentResponse,
@@ -47,6 +48,7 @@ const q = (params: Record<string, string | undefined>) => {
 };
 
 export const api = {
+  bootstrap: () => req<BootstrapResponse>(`/api/v1/bootstrap`),
   summary: (from?: string, to?: string, groupBy?: string) =>
     req<SummaryResponse>(`/api/v1/summary${q({ from, to, group_by: groupBy })}`),
   timeseries: (params: { from?: string; to?: string; interval?: string; groupBy?: string }) =>
@@ -54,11 +56,13 @@ export const api = {
       `/api/v1/usage/timeseries${q({ from: params.from, to: params.to, interval: params.interval, group_by: params.groupBy })}`,
     ),
   quotaCurrent: () => req<QuotaCurrentResponse>(`/api/v1/quota/current`),
-  quotaHistory: (provider: string, metric: string) =>
-    req<QuotaHistoryResponse>(`/api/v1/quota/history${q({ provider, metric })}`),
+  quotaHistory: (provider: string, metric: string, account?: string) =>
+    req<QuotaHistoryResponse>(`/api/v1/quota/history${q({ provider, metric, account })}`),
   devices: () => req<DevicesResponse>(`/api/v1/devices`),
   credentials: () => req<CredentialsResponse>(`/api/v1/credentials`),
-  putCredential: (provider: string, payload: unknown) =>
-    req(`/api/v1/credentials/${provider}`, { method: "PUT", body: JSON.stringify({ payload }) }),
-  deleteCredential: (provider: string) => req(`/api/v1/credentials/${provider}`, { method: "DELETE" }),
+  putCredential: (provider: string, payload: unknown, name?: string) =>
+    req(`/api/v1/credentials/${provider}`, { method: "PUT", body: JSON.stringify({ payload, name }) }),
+  deleteCredential: (provider: string, name?: string) =>
+    req(`/api/v1/credentials/${provider}${q({ name })}`, { method: "DELETE" }),
+  collect: () => req<{ ok: boolean; rows?: number; error?: string }>(`/api/v1/collect`, { method: "POST" }),
 };

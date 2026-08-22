@@ -22,6 +22,7 @@ export interface SummaryRow {
 export interface QuotaCurrentRow {
   provider: string;
   metric: string;
+  account: string;
   value: number;
   limit_value: number | null;
   unit: string | null;
@@ -32,6 +33,7 @@ export interface QuotaCurrentRow {
 export interface QuotaHistoryRow {
   provider: string;
   metric: string;
+  account: string;
   value: number;
   limit_value: number | null;
   unit: string | null;
@@ -47,6 +49,7 @@ export interface DeviceRow {
 
 export interface CredentialRow {
   provider: string;
+  name: string;
   hint: string | null;
   updated_at: string;
   updated_by: string | null;
@@ -58,6 +61,11 @@ export interface TimeseriesResponse {
   from: string | null;
   to: string | null;
   rows: UsageRow[];
+}
+
+export interface BootstrapResponse {
+  ts: TimeseriesResponse;
+  quota: QuotaCurrentResponse;
 }
 
 export interface SummaryResponse {

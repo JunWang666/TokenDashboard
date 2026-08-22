@@ -36,11 +36,13 @@ before(async () => {
   });
   db = await mf.getD1Database("DB");
   // miniflare 的 D1 exec 逐行解析，压成单行语句
-  const sql = readFileSync("migrations/0001_init.sql", "utf8")
-    .split("\n")
-    .filter((l) => !l.trim().startsWith("--"))
-    .join(" ");
-  await db.exec(sql);
+  for (const f of ["migrations/0001_init.sql", "migrations/0002_multi_key.sql"]) {
+    const sql = readFileSync(f, "utf8")
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("--"))
+      .join(" ");
+    await db.exec(sql);
+  }
 });
 
 after(async () => {
@@ -150,12 +152,16 @@ test("timeseries hour/day", async () => {
 });
 
 test("quota ingest (runner) + current/history (user)", async () => {
+  // current/bootstrap 只展示仍有凭证的 key，先建凭证（默认名）
+  await put("/api/v1/credentials/claude", { payload: { session_key: "sk-ant-test" } }, user);
+  await put("/api/v1/credentials/openai", { payload: { api_key: "sk-test-quota" } }, user);
+
   const res = await post(
     "/api/v1/ingest/quota",
     {
       rows: [
-        { provider: "claude", metric: "weekly_used_pct", value: 32.5, unit: "percent" },
-        { provider: "openai", metric: "balance_usd", value: 12.34, unit: "usd" },
+        { provider: "claude", metric: "weekly_used_pct", account: "默认", value: 32.5, unit: "percent" },
+        { provider: "openai", metric: "balance_usd", account: "默认", value: 12.34, unit: "usd" },
       ],
     },
     runner,
@@ -169,7 +175,7 @@ test("quota ingest (runner) + current/history (user)", async () => {
   // 追加快照后 current 取最新
   await post(
     "/api/v1/ingest/quota",
-    { rows: [{ provider: "claude", metric: "weekly_used_pct", value: 41, unit: "percent" }] },
+    { rows: [{ provider: "claude", metric: "weekly_used_pct", account: "默认", value: 41, unit: "percent" }] },
     runner,
   );
   const cur2 = await (await get("/api/v1/quota/current", user)).json();
@@ -177,6 +183,12 @@ test("quota ingest (runner) + current/history (user)", async () => {
 
   const hist = await (await get("/api/v1/quota/history?provider=claude&metric=weekly_used_pct", user)).json();
   assert.deepEqual(hist.rows.map((r) => r.value), [32.5, 41]);
+
+  // 清理凭证（连带清掉 quota 快照），避免影响后续 credentials 测试
+  await get("/api/v1/credentials/claude", { method: "DELETE", headers: user.headers });
+  await get("/api/v1/credentials/openai", { method: "DELETE", headers: user.headers });
+  const after = await (await get("/api/v1/quota/current", user)).json();
+  assert.equal(after.rows.length, 0);
 });
 
 test("credentials: put(hint only) / list / client put / delete 权限", async () => {
@@ -206,6 +218,39 @@ test("credentials: put(hint only) / list / client put / delete 权限", async ()
 test("credentials: 字符串入参存 {value}, runner 拿明文, user 被拒", async () => {
   await put("/api/v1/credentials/glm", { payload: "glm-plain-secret" }, user);
   const internal = await (await get("/api/v1/internal/credentials", runner)).json();
-  assert.deepEqual(internal.glm, { value: "glm-plain-secret" });
-  assert.equal(internal.openai.api_key, "sk-supersecret-1234");
+  assert.deepEqual(internal.glm, [{ name: "默认", value: "glm-plain-secret" }]);
+  assert.equal(internal.openai[0].api_key, "sk-supersecret-1234");
+});
+
+test("credentials: 多 key —— 同服务商存两把，独立列出/删除", async () => {
+  await put("/api/v1/credentials/deepseek", { name: "备用", payload: { api_key: "sk-backup-9999" } }, user);
+  await put("/api/v1/credentials/deepseek", { name: "主账号", payload: { api_key: "sk-main-1111" } }, user);
+
+  const list = await (await get("/api/v1/credentials", user)).json();
+  const ds = list.rows.filter((r) => r.provider === "deepseek").map((r) => r.name).sort();
+  assert.deepEqual(ds, ["主账号", "备用"]);
+
+  const internal = await (await get("/api/v1/internal/credentials", runner)).json();
+  assert.equal(internal.deepseek.length, 2);
+  assert.ok(internal.deepseek.every((k) => k.name && k.api_key));
+
+  // 按 name 删一把，另一把保留
+  await get("/api/v1/credentials/deepseek?name=备用", { method: "DELETE", headers: user.headers });
+  const after = await (await get("/api/v1/credentials", user)).json();
+  assert.deepEqual(after.rows.filter((r) => r.provider === "deepseek").map((r) => r.name), ["主账号"]);
+
+  // quota 按 account 独立统计
+  await post(
+    "/api/v1/ingest/quota",
+    { rows: [
+      { provider: "deepseek", metric: "balance_cny", account: "主账号", value: 50 },
+      { provider: "deepseek", metric: "balance_cny", account: "备用", value: 20 },
+    ] },
+    runner,
+  );
+  const cur = await (await get("/api/v1/quota/current", user)).json();
+  const bals = cur.rows.filter((r) => r.provider === "deepseek" && r.metric === "balance_cny");
+  assert.equal(bals.find((r) => r.account === "主账号")?.value, 50);
+  // 「备用」的凭证已删，其快照不再出现在 current
+  assert.equal(bals.find((r) => r.account === "备用"), undefined);
 });

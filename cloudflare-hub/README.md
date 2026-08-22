@@ -24,7 +24,7 @@ npx wrangler d1 migrations apply tokendash --local   # 初始化 schema
 ## 测试
 
 ```bash
-npm test          # miniflare 集成测试（node --test，9 个用例）
+npm test          # miniflare 集成测试 + runner 适配器单测（node --test，19 个用例）
 npm run typecheck
 ```
 

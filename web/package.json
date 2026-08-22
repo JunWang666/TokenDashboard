@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && npx wrangler pages deploy dist --project-name tokendash-web",
+    "deploy": "npm run build && cd ../cloudflare-hub && wrangler deploy",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import type { Env } from "./index";
 
-const PROVIDERS = ["claude", "openai", "copilot", "glm", "deepseek", "cursor"] as const;
+const PROVIDERS = ["claude", "openai", "copilot", "glm", "deepseek", "cursor", "codex", "kimi"] as const;
 export const PROVIDER_SET: ReadonlySet<string> = new Set(PROVIDERS);
 
 export const MAX_BATCH = 1000;
@@ -87,14 +87,16 @@ export async function postQuota(c: Context<{ Bindings: Env }>): Promise<Response
     if (typeof r.metric !== "string" || !r.metric.trim()) return bad(c, "metric required");
     const value = r.value;
     if (typeof value !== "number" || !Number.isFinite(value)) return bad(c, `bad value: ${value}`);
+    const account = typeof r.account === "string" && r.account.trim() ? r.account.trim().slice(0, 50) : "";
     stmts.push(
       env.DB.prepare(
-        `INSERT INTO quota_snapshots (provider, metric, value, limit_value, unit, reset_at)
-         VALUES (?,?,?,?,?,?)`,
+        `INSERT INTO quota_snapshots (provider, metric, account, value, limit_value, unit, reset_at)
+         VALUES (?,?,?,?,?,?,?)`,
       )
         .bind(
           r.provider,
           r.metric.trim(),
+          account,
           value,
           r.limit_value == null ? null : Number(r.limit_value),
           r.unit == null ? null : String(r.unit),
