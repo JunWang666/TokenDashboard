@@ -12,6 +12,23 @@
 
 ## 运行
 
+镜像托管在 GitHub Container Registry（push main 且 `runner/` 有改动时由 Actions 自动构建，
+amd64 + arm64）：
+
+```bash
+docker run -d --name tokendash-runner --restart unless-stopped \
+  -e HUB_URL=https://token.goudaijun.top \
+  -e CF_ACCESS_CLIENT_ID=xxx.access \
+  -e CF_ACCESS_CLIENT_SECRET=yyy \
+  -e PROVIDERS=kimi,codex \
+  ghcr.io/jungoudai/tokendash-runner:latest
+```
+
+> 仓库为私有时，拉取前需 `echo <PAT> | docker login ghcr.io -u <用户名> --password-stdin`
+> （PAT 勾 `read:packages`）；或在 GitHub 包页面把 tokendash-runner 设为 Public。
+
+本地构建（不依赖 ghcr）：
+
 ```bash
 docker build -t tokendash-runner ./runner
 docker run -d --name tokendash-runner --restart unless-stopped \
