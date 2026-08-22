@@ -71,10 +71,17 @@ export async function del(c: Context<{ Bindings: Env }>): Promise<Response> {
   return c.json({ ok: true, deleted: res.meta.changes });
 }
 
-/** GET /internal/credentials —— 解密明文，仅 runner；{ provider: [ { name, ...credFields } ] } */
+/** GET /internal/credentials —— 解密明文，仅 runner；{ provider: [ { name, ...credFields } ] }
+ *
+ * runner 分工由 hub 统一决定（调用方无需配置 PROVIDERS）：
+ * 对端 WAF 拦截 Workers 出口请求的 provider（EXTERNAL_RUNNER_PROVIDERS）只发给外部 runner
+ * （service token 进来的 Go runner），内置 runner（进程内 loopback）拿其余全部。 */
+export const EXTERNAL_RUNNER_PROVIDERS: ReadonlySet<string> = new Set(["kimi", "codex"]);
+
 export async function internalList(c: Context<{ Bindings: Env }>): Promise<Response> {
   const env = c.env;
   if (!env.CREDENTIALS_KEY) return c.json({ error: "server_misconfigured", detail: "CREDENTIALS_KEY not set" }, 500);
+  const external = c.get("principal").name !== "internal-runner";
   const { results } = await env.DB.prepare(
     `SELECT provider, name, payload_enc FROM credentials ORDER BY provider, name`,
   ).all<{
@@ -85,6 +92,7 @@ export async function internalList(c: Context<{ Bindings: Env }>): Promise<Respo
 
   const out: Record<string, unknown[]> = {};
   for (const r of results) {
+    if (external !== EXTERNAL_RUNNER_PROVIDERS.has(r.provider)) continue;
     const list = (out[r.provider] ??= []);
     try {
       const plain = await decryptCredential(env.CREDENTIALS_KEY, r.payload_enc);

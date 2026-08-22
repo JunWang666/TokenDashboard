@@ -32,6 +32,3 @@ ACCESS_TEAM = "gouzuang"
 ACCESS_AUD = "138aeabac84c1cd9e670ea466c676263b9fd4751129aa765c9e0aebc1a0172c6"
 RUNNER_SERVICE_TOKENS = "f178899567adaece05c4cde7775c139f.access"
 HUB_URL = "https://token.goudaijun.top"
-# 内置 runner 负责的 provider；kimi/codex 的对端 WAF 拦截 Workers 出口请求，
-# 由 runner/（Go 独立版，部署在非 Cloudflare 网络）采集
-PROVIDERS = "claude,openai,copilot,glm,deepseek,cursor"

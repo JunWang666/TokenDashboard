@@ -19,10 +19,9 @@ import (
 )
 
 type config struct {
-	hubURL    string
-	auth      map[string]string
-	providers map[string]bool // 白名单，空 = 全部已实现的适配器
-	interval  time.Duration
+	hubURL   string
+	auth     map[string]string
+	interval time.Duration
 }
 
 func configFromEnv() (config, error) {
@@ -56,14 +55,6 @@ func configFromEnv() (config, error) {
 		cfg.interval = d
 	}
 
-	if s := os.Getenv("PROVIDERS"); s != "" {
-		cfg.providers = map[string]bool{}
-		for _, p := range strings.Split(s, ",") {
-			if p = strings.TrimSpace(p); p != "" {
-				cfg.providers[p] = true
-			}
-		}
-	}
 	return cfg, nil
 }
 
@@ -77,11 +68,10 @@ func collect(ctx context.Context, cfg config) (int, error) {
 
 	var rows []adapter.Row
 	for provider, keys := range creds {
-		if len(cfg.providers) > 0 && !cfg.providers[provider] {
-			continue
-		}
+		// hub 已按 runner 身份分工（只发本 runner 该采的 provider）；
+		// 无 Go 适配器的 provider 跳过
 		if adapter.Lookup(provider) == nil {
-			continue // 该 provider 无 Go 适配器（由 Cloudflare 侧 runner 负责）
+			continue
 		}
 		for _, cred := range keys {
 			if _, failed := cred["__error__"]; failed {
@@ -128,7 +118,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Printf("tokendash-runner 启动: hub=%s interval=%s providers=%v", cfg.hubURL, cfg.interval, enabledProviders(cfg))
+	log.Printf("tokendash-runner 启动: hub=%s interval=%s providers=%v", cfg.hubURL, cfg.interval, adapter.Providers())
 	run(ctx, cfg)
 	ticker := time.NewTicker(cfg.interval)
 	defer ticker.Stop()
@@ -150,15 +140,4 @@ func run(ctx context.Context, cfg config) {
 		return
 	}
 	log.Printf("采集完成: %d 行快照", n)
-}
-
-func enabledProviders(cfg config) []string {
-	if len(cfg.providers) == 0 {
-		return adapter.Providers()
-	}
-	out := make([]string, 0, len(cfg.providers))
-	for p := range cfg.providers {
-		out = append(out, p)
-	}
-	return out
 }

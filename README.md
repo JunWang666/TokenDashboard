@@ -50,8 +50,8 @@ cd client && go build ./cmd/tokendash
 - 部署命令：`cd cloudflare-hub && wrangler deploy`（先 `cd web && npm run build`）
 - Zero Trust team：`gouzuang`；Access 应用 `tokendash`（`token.goudaijun.top`，Personal 邮箱策略 + service token 策略）
 - hub JWT 校验 `RUNNER_SERVICE_TOKENS` 用的是 service token 的 **client_id**（JWT `common_name`），不是显示名
-- 采集逻辑在 `cloudflare-hub/src/runner/`（原独立 `cloudflare-runner/` 目录已删除，生产合并部署），负责 `PROVIDERS` 变量列出的 provider（claude/openai/copilot/glm/deepseek/cursor）
-- kimi/codex 的对端（api.kimi.com、chatgpt.com）套着 Cloudflare WAF，拦截 Workers 出口请求（403 challenge 页），由 `runner/`（Go 独立版，Docker 部署在非 Cloudflare 网络的机器）采集，用同一个 service token 认证
+- 采集逻辑在 `cloudflare-hub/src/runner/`（原独立 `cloudflare-runner/` 目录已删除，生产合并部署）；kimi/codex 的对端（api.kimi.com、chatgpt.com）套着 Cloudflare WAF，拦截 Workers 出口请求（403 challenge 页），由 `runner/`（Go 独立版，Docker 部署在非 Cloudflare 网络的机器）采集
+- 两个 runner 的分工由 hub 统一分配（`/internal/credentials` 按调用方身份过滤，外部 provider 清单 `EXTERNAL_RUNNER_PROVIDERS` 在 `src/credentials.ts`），runner 侧无需配置 PROVIDERS；外部 runner 用同一个 service token 认证
 
 ## 部署清单（Zero Trust）
 

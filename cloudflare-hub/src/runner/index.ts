@@ -6,7 +6,6 @@ export interface Env {
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
   HUB_DEV_TOKEN?: string;
-  PROVIDERS?: string;
 }
 
 /** 调用 hub 时的鉴权头：本地开发用 Bearer dev token，生产用 Access service token 头 */
@@ -30,14 +29,8 @@ export async function collect(env: Env, f: typeof fetch = fetch): Promise<number
   // { provider: [ { name, ...credFields } ] } —— 每个服务商可有多把 key
   const creds = (await credRes.json()) as Record<string, Array<Record<string, unknown> & { name?: string }>>;
 
-  const enabled = (env.PROVIDERS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
   const rows: QuotaRow[] = [];
   for (const [provider, keys] of Object.entries(creds)) {
-    if (enabled.length > 0 && !enabled.includes(provider)) continue;
     if (!Array.isArray(keys)) continue;
     for (const cred of keys) {
       if (cred == null || cred.__error__) continue;

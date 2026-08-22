@@ -215,11 +215,22 @@ test("credentials: put(hint only) / list / client put / delete 权限", async ()
   assert.equal((await get("/api/v1/credentials/deepseek", { method: "DELETE", headers: user.headers })).status, 200);
 });
 
-test("credentials: 字符串入参存 {value}, runner 拿明文, user 被拒", async () => {
+test("credentials: 字符串入参存 {value}；internal/credentials 按 runner 身份分工", async () => {
   await put("/api/v1/credentials/glm", { payload: "glm-plain-secret" }, user);
-  const internal = await (await get("/api/v1/internal/credentials", runner)).json();
+  await put("/api/v1/credentials/kimi", { payload: { api_key: "sk-kimi-ext" } }, user);
+
+  // 外部 runner（service token / dev token）：只拿到对端 WAF 拦截 Workers 的 provider
+  const ext = await (await get("/api/v1/internal/credentials", runner)).json();
+  assert.deepEqual(Object.keys(ext), ["kimi"]);
+  assert.equal(ext.kimi[0].api_key, "sk-kimi-ext");
+
+  // 内置 runner（进程内 loopback，X-Tokendash-Internal）：拿其余 provider
+  const internal = await (
+    await get("/api/v1/internal/credentials", { headers: { "X-Tokendash-Internal": KEY_B64 } })
+  ).json();
   assert.deepEqual(internal.glm, [{ name: "默认", value: "glm-plain-secret" }]);
   assert.equal(internal.openai[0].api_key, "sk-supersecret-1234");
+  assert.equal(internal.kimi, undefined);
 });
 
 test("credentials: 多 key —— 同服务商存两把，独立列出/删除", async () => {
@@ -230,7 +241,9 @@ test("credentials: 多 key —— 同服务商存两把，独立列出/删除", 
   const ds = list.rows.filter((r) => r.provider === "deepseek").map((r) => r.name).sort();
   assert.deepEqual(ds, ["主账号", "备用"]);
 
-  const internal = await (await get("/api/v1/internal/credentials", runner)).json();
+  const internal = await (
+    await get("/api/v1/internal/credentials", { headers: { "X-Tokendash-Internal": KEY_B64 } })
+  ).json();
   assert.equal(internal.deepseek.length, 2);
   assert.ok(internal.deepseek.every((k) => k.name && k.api_key));
 

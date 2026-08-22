@@ -366,7 +366,7 @@ interface QuotaAdapter {
 
 `api.kimi.com`、`chatgpt.com` 等对端套着 Cloudflare WAF（Bot Management），会拦截**来自 Cloudflare Workers 出口**的请求（数据中心 IP + `CF-Worker` 特征头，403 challenge 页），内置 runner 调这些接口必然失败。因此把这部分 provider 拆到 `runner/`：与内置 runner 同构的 Go 实现（拉凭证 → 适配器 → 上报快照），纯标准库、Docker 单容器部署在非 Cloudflare 网络的机器（NAS/VPS）上，用同一个 runner service token 认证。
 
-分工靠两边的 `PROVIDERS` 白名单：hub `wrangler.toml` 里排除 `kimi,codex`，Go runner 用 `PROVIDERS=kimi,codex`，避免同一 provider 两边采集产生重复快照和成功/失败状态交替。
+分工由 hub 统一决定，runner 侧无需任何 provider 配置：hub 的 `GET /api/v1/internal/credentials` 按调用方身份过滤——外部 runner（service token 认证）只拿到 `EXTERNAL_RUNNER_PROVIDERS`（对端 WAF 拦截 Workers 出口的 provider，当前为 kimi/codex，定义在 `cloudflare-hub/src/credentials.ts`），内置 runner（进程内 loopback）拿其余全部。新增被 WAF 拦截的 provider 时加进这个集合即可。
 
 ## 6. web（Pages 前端）
 

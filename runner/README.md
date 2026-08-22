@@ -20,7 +20,6 @@ docker run -d --name tokendash-runner --restart unless-stopped \
   -e HUB_URL=https://token.goudaijun.top \
   -e CF_ACCESS_CLIENT_ID=xxx.access \
   -e CF_ACCESS_CLIENT_SECRET=yyy \
-  -e PROVIDERS=kimi,codex \
   ghcr.io/junwang666/tokendash-runner:latest
 ```
 
@@ -46,8 +45,9 @@ docker run -d --name tokendash-runner --restart unless-stopped \
 | `HUB_URL` | 是 | hub 地址 |
 | `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | 生产必填 | runner 的 Access service token（可复用现有的 `tokendash-runner`） |
 | `HUB_DEV_TOKEN` | 二选一 | 本地/调试令牌（hub 配置了 `DEV_TOKEN` 时可用） |
-| `PROVIDERS` | 否 | 逗号分隔白名单，如 `kimi,codex`；空 = 全部已实现的适配器 |
 | `INTERVAL` | 否 | 采集周期，默认 `15m`（最小 `1m`） |
+
+采集哪些 provider 由 hub 按 runner 身份分配（见下），无需配置。
 
 调试：`docker run --rm ... tokendash-runner -once` 只采集一轮，失败时退出码非 0。
 
@@ -60,10 +60,11 @@ HUB_URL=... CF_ACCESS_CLIENT_ID=... CF_ACCESS_CLIENT_SECRET=... ./tokendash-runn
 
 ## 与内置 runner 的分工
 
-同一 provider 两边都采会产生重复快照、成功/失败状态交替（kimi 在内置 runner 上每轮
-都写 `scrape_error`）。因此 Cloudflare 侧通过 `PROVIDERS` 变量排除本 runner 负责的
-provider——hub 的 `wrangler.toml` 已配置 `PROVIDERS = "claude,openai,copilot,glm,deepseek,cursor"`，
-本 runner 用 `PROVIDERS=kimi,codex`。
+分工由 hub 统一决定，两边 runner 都无需配置：hub 的 `GET /api/v1/internal/credentials`
+按调用方身份过滤——外部 runner（service token 认证）只拿到 `EXTERNAL_RUNNER_PROVIDERS`
+（对端 WAF 拦截 Workers 出口的 provider，当前为 kimi/codex，定义在
+`cloudflare-hub/src/credentials.ts`）；内置 runner（进程内 loopback）拿其余全部。
+新增被 WAF 拦截的 provider 时，把它加进 `EXTERNAL_RUNNER_PROVIDERS` 即可。
 
 ## 当前适配器
 

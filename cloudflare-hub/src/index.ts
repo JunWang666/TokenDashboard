@@ -19,7 +19,6 @@ export interface Env {
   HUB_URL: string;
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
-  PROVIDERS?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
