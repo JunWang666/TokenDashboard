@@ -110,7 +110,10 @@ function CollectButton({ onDone }: { onDone: () => void }) {
     try {
       const r = await api.collect();
       if (!r.ok) throw new Error(r.error ?? "采集失败");
-      setMsg(`已采集 ${r.rows ?? 0} 条`);
+      let text = `已采集 ${r.rows ?? 0} 条`;
+      if (r.runner === "triggered") text += " · 已通知 runner";
+      else if (r.runner?.startsWith("failed")) text += " · runner 通知失败";
+      setMsg(text);
       onDone();
     } catch (e) {
       setMsg(e instanceof AuthError ? "登录已过期" : String(e));

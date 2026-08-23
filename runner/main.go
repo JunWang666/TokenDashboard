@@ -5,9 +5,11 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -19,9 +21,11 @@ import (
 )
 
 type config struct {
-	hubURL   string
-	auth     map[string]string
-	interval time.Duration
+	hubURL        string
+	auth          map[string]string
+	interval      time.Duration
+	listenAddr    string // 非空时启动 HTTP 监听，接收 hub 的 webhook 触发立即采集
+	webhookSecret string
 }
 
 func configFromEnv() (config, error) {
@@ -53,6 +57,13 @@ func configFromEnv() (config, error) {
 			return cfg, fmt.Errorf("INTERVAL 非法（如 15m、1h，最小 1m）: %q", s)
 		}
 		cfg.interval = d
+	}
+
+	// webhook 监听：hub 点「立即采集」时 POST /collect 立即触发一轮
+	cfg.listenAddr = os.Getenv("LISTEN_ADDR")
+	cfg.webhookSecret = os.Getenv("WEBHOOK_SECRET")
+	if cfg.listenAddr != "" && cfg.webhookSecret == "" {
+		return cfg, fmt.Errorf("配置了 LISTEN_ADDR 时必须同时配置 WEBHOOK_SECRET")
 	}
 
 	return cfg, nil
@@ -118,7 +129,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	log.Printf("tokendash-runner 启动: hub=%s interval=%s providers=%v", cfg.hubURL, cfg.interval, adapter.Providers())
+	// webhook 触发通道：容量 1，采集已在跑时丢弃多余触发
+	triggerCh := make(chan struct{}, 1)
+	if cfg.listenAddr != "" {
+		go serveWebhook(ctx, cfg, triggerCh)
+	}
+
+	log.Printf("tokendash-runner 启动: hub=%s interval=%s listen=%s providers=%v", cfg.hubURL, cfg.interval, orNone(cfg.listenAddr), adapter.Providers())
 	run(ctx, cfg)
 	ticker := time.NewTicker(cfg.interval)
 	defer ticker.Stop()
@@ -129,7 +146,47 @@ func main() {
 			return
 		case <-ticker.C:
 			run(ctx, cfg)
+		case <-triggerCh:
+			log.Printf("webhook 触发采集")
+			run(ctx, cfg)
 		}
+	}
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "(未监听)"
+	}
+	return s
+}
+
+// serveWebhook 提供 POST /collect（Bearer 校验），收到请求即触发一轮采集。
+// handler 立即返回 202，采集在主循环 goroutine 里串行执行。
+func serveWebhook(ctx context.Context, cfg config, triggerCh chan<- struct{}) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /collect", func(w http.ResponseWriter, r *http.Request) {
+		tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if subtle.ConstantTimeCompare([]byte(tok), []byte(cfg.webhookSecret)) != 1 {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		select {
+		case triggerCh <- struct{}{}:
+			fmt.Fprint(w, `{"ok":true}`)
+		default:
+			fmt.Fprint(w, `{"ok":true,"note":"collect already in progress"}`)
+		}
+	})
+	srv := &http.Server{Addr: cfg.listenAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		<-ctx.Done()
+		_ = srv.Shutdown(context.Background())
+	}()
+	log.Printf("webhook 监听: %s", cfg.listenAddr)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Printf("webhook 服务异常退出: %v", err)
 	}
 }
 

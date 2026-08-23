@@ -4,6 +4,7 @@ import { authMiddleware, requireRole } from "./auth";
 import * as ingest from "./ingest";
 import * as query from "./query";
 import * as credentials from "./credentials";
+import * as settings from "./settings";
 import { collect } from "./runner/index";
 
 export interface Env {
@@ -59,11 +60,15 @@ api.put("/credentials/:provider", requireRole("user", "client"), credentials.put
 api.delete("/credentials/:provider", requireRole("user"), credentials.del);
 api.get("/internal/credentials", requireRole("runner"), credentials.internalList);
 
-/** 主动触发一轮额度采集（登录用户/客户端可用） */
+api.get("/collect-webhook", requireRole("user", "client"), settings.get);
+api.put("/collect-webhook", requireRole("user"), settings.put);
+
+/** 主动触发一轮额度采集（登录用户/客户端可用）；配置了 webhook 时同步通知独立 runner */
 api.post("/collect", requireRole("user", "client"), async (c) => {
   try {
     const n = await collect(c.env, localFetch(c.env, c.executionCtx));
-    return c.json({ ok: true, rows: n });
+    const runner = await settings.notifyRunner(c.env);
+    return c.json({ ok: true, rows: n, runner });
   } catch (e) {
     return c.json({ ok: false, error: String(e) }, 500);
   }

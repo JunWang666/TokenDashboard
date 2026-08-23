@@ -64,5 +64,12 @@ export const api = {
     req(`/api/v1/credentials/${provider}`, { method: "PUT", body: JSON.stringify({ payload, name }) }),
   deleteCredential: (provider: string, name?: string) =>
     req(`/api/v1/credentials/${provider}${q({ name })}`, { method: "DELETE" }),
-  collect: () => req<{ ok: boolean; rows?: number; error?: string }>(`/api/v1/collect`, { method: "POST" }),
+  collect: () =>
+    req<{ ok: boolean; rows?: number; error?: string; runner?: string | null }>(`/api/v1/collect`, { method: "POST" }),
+  getCollectWebhook: () => req<{ url: string | null; hasSecret: boolean }>(`/api/v1/collect-webhook`),
+  putCollectWebhook: (url: string, secret?: string) =>
+    req<{ ok: boolean; url: string | null; hasSecret: boolean }>(`/api/v1/collect-webhook`, {
+      method: "PUT",
+      body: JSON.stringify(secret ? { url, secret } : { url }),
+    }),
 };

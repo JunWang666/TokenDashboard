@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import AsyncData from "../components/AsyncData";
 import { scrapeError, CopyableError } from "../components/QuotaBar";
@@ -91,6 +91,102 @@ export default function Credentials() {
           </AsyncData>
         )}
       </AsyncData>
+
+      <WebhookCard />
+    </div>
+  );
+}
+
+/** Runner Webhook 配置：runner 公网可达时，点「立即采集」会同时触发独立 runner 采一轮 */
+function WebhookCard() {
+  const [url, setUrl] = useState("");
+  const [secret, setSecret] = useState("");
+  const [hasSecret, setHasSecret] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    api
+      .getCollectWebhook()
+      .then((r) => {
+        setUrl(r.url ?? "");
+        setHasSecret(r.hasSecret);
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  const save = async (clear = false) => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const r = await api.putCollectWebhook(clear ? "" : url.trim(), clear ? undefined : secret.trim() || undefined);
+      setHasSecret(r.hasSecret);
+      setSecret("");
+      setMsg({ ok: true, text: r.url ? "已保存" : "已清除" });
+      if (clear) setUrl("");
+    } catch (e) {
+      setMsg({ ok: false, text: String(e) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls =
+    "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300";
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900/50">
+      <h2 className="text-sm font-medium text-slate-800 dark:text-slate-200">Runner Webhook</h2>
+      <p className="mt-1 text-xs text-slate-400 dark:text-slate-600">
+        独立 runner 公网可达时配置：点「立即采集」会同时 POST 触发它采一轮（runner 需配置 LISTEN_ADDR / WEBHOOK_SECRET，见 runner README）。
+      </p>
+      {loaded && (
+        <div className="mt-4 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-xs text-slate-500">Webhook 地址</label>
+              <input
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://runner.example.com/collect"
+                className={`mt-1 ${inputCls} font-mono`}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">密钥（Bearer）</label>
+              <input
+                type="password"
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+                placeholder={hasSecret ? "已设置，留空保持不变" : "与 runner 的 WEBHOOK_SECRET 一致"}
+                autoComplete="off"
+                className={`mt-1 ${inputCls} font-mono`}
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => save()}
+              disabled={!url.trim() || saving}
+              className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-slate-950 transition-colors hover:bg-emerald-400 disabled:opacity-40"
+            >
+              {saving ? "保存中…" : "保存"}
+            </button>
+            {url && (
+              <button
+                onClick={() => save(true)}
+                disabled={saving}
+                className="rounded-lg border border-red-500/40 px-2.5 py-1 text-xs text-red-500 transition-colors hover:bg-red-500/10 dark:text-red-400 disabled:opacity-40"
+              >
+                清除
+              </button>
+            )}
+            {msg && <span className={`text-xs ${msg.ok ? "text-emerald-500" : "text-red-500"}`}>{msg.text}</span>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

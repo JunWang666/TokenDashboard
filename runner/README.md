@@ -46,8 +46,30 @@ docker run -d --name tokendash-runner --restart unless-stopped \
 | `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | 生产必填 | runner 的 Access service token（可复用现有的 `tokendash-runner`） |
 | `HUB_DEV_TOKEN` | 二选一 | 本地/调试令牌（hub 配置了 `DEV_TOKEN` 时可用） |
 | `INTERVAL` | 否 | 采集周期，默认 `15m`（最小 `1m`） |
+| `LISTEN_ADDR` | 否 | 设置后启动 webhook HTTP 监听（如 `:9100`），hub 点「立即采集」时立即触发一轮 |
+| `WEBHOOK_SECRET` | 配 `LISTEN_ADDR` 时必填 | webhook Bearer 密钥（与 hub 侧「凭证管理 → Runner Webhook」里配置的密钥一致） |
 
 采集哪些 provider 由 hub 按 runner 身份分配（见下），无需配置。
+
+## Web「立即采集」联动（webhook）
+
+runner 公网可达（或经隧道/frp 暴露）时，可让 Web 上点「立即采集」立即触发本 runner 采一轮，
+不必等下一个采集周期：
+
+```bash
+docker run -d --name tokendash-runner --restart unless-stopped \
+  -p 9100:9100 \
+  -e HUB_URL=https://token.goudaijun.top \
+  -e CF_ACCESS_CLIENT_ID=xxx.access \
+  -e CF_ACCESS_CLIENT_SECRET=yyy \
+  -e LISTEN_ADDR=:9100 \
+  -e WEBHOOK_SECRET=一串足够长的随机串 \
+  ghcr.io/junwang666/tokendash-runner:latest
+```
+
+然后在 Web「凭证管理」页底部的「Runner Webhook」里填入
+`https://<runner 公网地址>/collect` 和同一个密钥即可。
+hub 调 webhook 不等待采集完成（runner 返回 202 后异步采集，快照几秒后上报）。
 
 调试：`docker run --rm ... tokendash-runner -once` 只采集一轮，失败时退出码非 0。
 
