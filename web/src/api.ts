@@ -56,8 +56,8 @@ export const api = {
       `/api/v1/usage/timeseries${q({ from: params.from, to: params.to, interval: params.interval, group_by: params.groupBy })}`,
     ),
   quotaCurrent: () => req<QuotaCurrentResponse>(`/api/v1/quota/current`),
-  quotaHistory: (provider: string, metric: string, account?: string) =>
-    req<QuotaHistoryResponse>(`/api/v1/quota/history${q({ provider, metric, account })}`),
+  quotaHistory: (params?: { provider?: string; metric?: string; account?: string; from?: string; to?: string }) =>
+    req<QuotaHistoryResponse>(`/api/v1/quota/history${q(params ?? {})}`),
   devices: () => req<DevicesResponse>(`/api/v1/devices`),
   credentials: () => req<CredentialsResponse>(`/api/v1/credentials`),
   putCredential: (provider: string, payload: unknown, name?: string) =>

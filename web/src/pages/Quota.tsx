@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -10,144 +11,232 @@ import {
 } from "recharts";
 import { api } from "../api";
 import AsyncData from "../components/AsyncData";
-import { fmtShortTime, providerColor } from "../format";
+import { CopyableError, scrapeError } from "../components/QuotaBar";
+import {
+  PROVIDERS,
+  fmtQuotaValue,
+  fmtShortTime,
+  isPercentMetric,
+  metricColor,
+  metricLabel,
+  providerMeta,
+} from "../format";
 import { chartPalette, useTheme } from "../theme";
-import type { QuotaCurrentResponse, QuotaHistoryResponse } from "../types";
+import type { QuotaCurrentRow, QuotaHistoryRow } from "../types";
+
+const HISTORY_DAYS = 14;
+
+type KeyGroup = {
+  provider: string;
+  account: string;
+  current: QuotaCurrentRow[];
+  history: QuotaHistoryRow[];
+};
+
+function groupKeys(current: QuotaCurrentRow[], history: QuotaHistoryRow[]): KeyGroup[] {
+  const map = new Map<string, KeyGroup>();
+  const add = (provider: string, account: string) => {
+    const id = `${provider}\0${account}`;
+    if (!map.has(id)) map.set(id, { provider, account, current: [], history: [] });
+    return map.get(id)!;
+  };
+  for (const r of current) {
+    if (r.metric === "scrape_error") continue;
+    add(r.provider, r.account).current.push(r);
+  }
+  for (const r of history) {
+    if (r.metric === "scrape_error") continue;
+    add(r.provider, r.account).history.push(r);
+  }
+  const order = new Map(PROVIDERS.map((p, i) => [p.id, i]));
+  return [...map.values()]
+    .filter((g) => g.current.length > 0 || g.history.length > 0)
+    .sort((a, b) => {
+      const d = (order.get(a.provider) ?? 99) - (order.get(b.provider) ?? 99);
+      return d !== 0 ? d : a.account.localeCompare(b.account, "zh-CN");
+    });
+}
 
 export default function Quota() {
-  const [quota, setQuota] = useState<QuotaCurrentResponse | null>(null);
-  const [selected, setSelected] = useState<{ provider: string; metric: string; account: string } | null>(null);
-
-  const loadQuota = useCallback(async () => {
-    const q = await api.quotaCurrent();
-    // scrape_error 是采集失败占位行（错误信息存在 reset_at），不是指标，不进图表
-    const rows = q.rows.filter((r) => r.metric !== "scrape_error");
-    setQuota({ rows });
-    setSelected((prev) => {
-      if (prev) return prev;
-      const first = rows[0];
-      return first ? { provider: first.provider, metric: first.metric, account: first.account } : null;
-    });
-    return q;
+  const load = useCallback(async () => {
+    const from = new Date(Date.now() - HISTORY_DAYS * 86400000).toISOString();
+    const [cur, hist] = await Promise.all([api.quotaCurrent(), api.quotaHistory({ from })]);
+    return { current: cur.rows, history: hist.rows };
   }, []);
-
-  const loadHistory = useCallback(() => {
-    if (!selected) return Promise.resolve({ rows: [] } as QuotaHistoryResponse);
-    return api.quotaHistory(selected.provider, selected.metric, selected.account);
-  }, [selected]);
-
-  // 可选指标：provider + account + metric 组合
-  const groups = useMemo(() => {
-    const m = new Map<string, { provider: string; account: string; metrics: Set<string> }>();
-    for (const r of quota?.rows ?? []) {
-      const key = `${r.provider}${r.account}`;
-      if (!m.has(key)) m.set(key, { provider: r.provider, account: r.account, metrics: new Set() });
-      m.get(key)!.metrics.add(r.metric);
-    }
-    return [...m.values()];
-  }, [quota]);
-
-  // 快照出现新组合时自动选中第一项
-  useEffect(() => {
-    if (!selected && quota?.rows.length) {
-      const f = quota.rows[0];
-      setSelected({ provider: f.provider, metric: f.metric, account: f.account });
-    }
-  }, [quota, selected]);
-
-  const by = (p: string, m: string, a: string) =>
-    quota?.rows.find((r) => r.provider === p && r.metric === m && r.account === a);
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">额度</h1>
-        <p className="mt-1 text-sm text-slate-500">各指标历史曲线，观察额度消耗速率</p>
+        <p className="mt-1 text-sm text-slate-500">每个 Key 一张图，近 {HISTORY_DAYS} 天多指标同图画线</p>
       </header>
 
-      <AsyncData load={loadQuota} refreshMs={120000}>
-        {() => (
-          <div className="space-y-6">
-            {quota && quota.rows.length === 0 && (
+      <AsyncData load={load} refreshMs={120000}>
+        {({ current, history }) => {
+          const keys = groupKeys(current, history);
+          if (keys.length === 0) {
+            return (
               <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50">
                 暂无额度快照。配置 runner 凭证后每 15 分钟自动采集。
               </div>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              {groups.map(({ provider, account, metrics: metricSet }) => (
-                <div key={`${provider}/${account}`} className="flex flex-wrap items-center gap-1.5">
-                  {[...metricSet].map((metric) => {
-                    const active =
-                      selected?.provider === provider && selected?.metric === metric && selected?.account === account;
-                    return (
-                      <button
-                        key={metric}
-                        onClick={() => setSelected({ provider, metric, account })}
-                        className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                          active
-                            ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                            : "border-slate-300 text-slate-500 hover:border-slate-400 dark:border-slate-700 dark:text-slate-400 dark:hover:border-slate-500"
-                        }`}
-                      >
-                        {provider}{account ? ` · ${account}` : ""}:{metric}
-                        {by(provider, metric, account)?.unit === "percent" && by(provider, metric, account)?.value != null
-                          ? ` (${by(provider, metric, account)!.value}%)`
-                          : ""}
-                      </button>
-                    );
-                  })}
-                </div>
+            );
+          }
+          return (
+            <div className="space-y-4">
+              {keys.map((g) => (
+                <KeyChart key={`${g.provider}/${g.account}`} group={g} allCurrent={current} />
               ))}
             </div>
-
-            {selected && (
-              <AsyncData<QuotaHistoryResponse> load={loadHistory} refreshMs={120000}>
-                {(hist) => <HistoryChart hist={hist} selected={selected} />}
-              </AsyncData>
-            )}
-          </div>
-        )}
+          );
+        }}
       </AsyncData>
     </div>
   );
 }
 
-function HistoryChart({
-  hist,
-  selected,
-}: {
-  hist: QuotaHistoryResponse;
-  selected: { provider: string; metric: string; account: string };
-}) {
+function KeyChart({ group, allCurrent }: { group: KeyGroup; allCurrent: QuotaCurrentRow[] }) {
   const theme = useTheme();
   const pal = chartPalette(theme);
+  const meta = providerMeta(group.provider);
+  const err = scrapeError(group.provider, allCurrent, group.account);
+
+  const metrics = useMemo(() => {
+    const names = new Set<string>();
+    for (const r of group.current) names.add(r.metric);
+    for (const r of group.history) names.add(r.metric);
+    return [...names].sort((a, b) => metricLabel(a).localeCompare(metricLabel(b), "zh-CN"));
+  }, [group]);
+
+  const unitOf = (metric: string) =>
+    group.current.find((r) => r.metric === metric)?.unit ??
+    group.history.find((r) => r.metric === metric)?.unit ??
+    null;
+
+  const pctMetrics = metrics.filter((m) => isPercentMetric(m, unitOf(m)));
+  const otherMetrics = metrics.filter((m) => !isPercentMetric(m, unitOf(m)));
+  const dual = pctMetrics.length > 0 && otherMetrics.length > 0;
+
+  const data = useMemo(() => {
+    const byTime = new Map<string, Record<string, number | string>>();
+    for (const r of group.history) {
+      const d = new Date(r.captured_at);
+      if (Number.isNaN(d.getTime())) continue;
+      d.setSeconds(0, 0);
+      d.setMilliseconds(0);
+      const iso = d.toISOString();
+      const row = byTime.get(iso) ?? { t: iso, label: fmtShortTime(iso) };
+      row[r.metric] = r.value;
+      byTime.set(iso, row);
+    }
+    return [...byTime.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, row]) => row);
+  }, [group.history]);
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900/50">
-      <div className="mb-2 text-sm text-slate-500 dark:text-slate-400">
-        {selected.provider}
-        {selected.account ? ` · ${selected.account}` : ""} · {selected.metric} · 共 {hist.rows.length} 个快照
+    <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900/50">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full" style={{ background: meta.color }} />
+        <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{meta.name}</span>
+        {group.account ? (
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+            {group.account}
+          </span>
+        ) : null}
+        <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+          {metrics.map((m) => {
+            const row = group.current.find((r) => r.metric === m);
+            if (!row) return null;
+            return (
+              <span key={m} className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-3 rounded-full" style={{ background: metricColor(m) }} />
+                <span>{metricLabel(m)}</span>
+                <span className="tabular-nums text-slate-700 dark:text-slate-300">
+                  {fmtQuotaValue(row.value, row.unit, m)}
+                </span>
+              </span>
+            );
+          })}
+        </div>
       </div>
-      <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={hist.rows.map((r) => ({ ...r, label: fmtShortTime(r.captured_at) }))} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={pal.grid} vertical={false} />
-          <XAxis dataKey="label" tick={{ fill: pal.tick, fontSize: 11 }} tickLine={false} axisLine={{ stroke: pal.grid }} />
-          <YAxis tick={{ fill: pal.tick, fontSize: 11 }} tickLine={false} axisLine={false} />
-          <Tooltip
-            contentStyle={{ background: pal.tooltipBg, border: `1px solid ${pal.tooltipBorder}`, borderRadius: 8, fontSize: 12 }}
-            labelStyle={{ color: pal.tooltipText }}
-            formatter={(value) => [Number(value ?? 0), selected.metric]}
-          />
-          <Line
-            type="monotone"
-            dataKey="value"
-            stroke={providerColor(selected.provider)}
-            strokeWidth={2}
-            dot={false}
-            isAnimationActive={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+
+      {err && (
+        <div className="mb-3 text-sm text-red-600 dark:text-red-400">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium">采集失败</span>
+            <CopyableError err={err} />
+          </div>
+          <div className="mt-1 break-all text-xs text-red-500/80 dark:text-red-400/70">{err}</div>
+        </div>
+      )}
+
+      {data.length === 0 ? (
+        <div className="flex h-40 items-center justify-center text-sm text-slate-400 dark:text-slate-600">
+          暂无历史快照
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={data} margin={{ top: 8, right: dual ? 12 : 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={pal.grid} vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: pal.tick, fontSize: 11 }} tickLine={false} axisLine={{ stroke: pal.grid }} minTickGap={28} />
+            {pctMetrics.length > 0 && (
+              <YAxis
+                yAxisId="pct"
+                tick={{ fill: pal.tick, fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                domain={[0, (max: number) => (max > 100 ? Math.ceil(max) : 100)]}
+                tickFormatter={(v: number) => `${v}%`}
+                width={44}
+              />
+            )}
+            {otherMetrics.length > 0 && (
+              <YAxis
+                yAxisId="other"
+                orientation={dual ? "right" : "left"}
+                tick={{ fill: pal.tick, fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                width={52}
+                tickFormatter={(v: number) => fmtAxis(v, unitOf(otherMetrics[0]))}
+              />
+            )}
+            <Tooltip
+              contentStyle={{ background: pal.tooltipBg, border: `1px solid ${pal.tooltipBorder}`, borderRadius: 8, fontSize: 12 }}
+              labelStyle={{ color: pal.tooltipText }}
+              formatter={(value, name) => {
+                const metric = String(name);
+                return [fmtQuotaValue(Number(value ?? 0), unitOf(metric), metric), metricLabel(metric)];
+              }}
+            />
+            <Legend
+              wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+              formatter={(value) => metricLabel(String(value))}
+            />
+            {metrics.map((m) => (
+              <Line
+                key={m}
+                yAxisId={isPercentMetric(m, unitOf(m)) ? "pct" : "other"}
+                type="monotone"
+                dataKey={m}
+                name={m}
+                stroke={metricColor(m)}
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </section>
   );
+}
+
+function fmtAxis(v: number, unit: string | null): string {
+  if (unit === "usd" || unit === "USD") return `$${v}`;
+  if (unit === "cny" || unit === "CNY") return `¥${v}`;
+  if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(1)}k`;
+  return String(v);
 }
