@@ -59,6 +59,87 @@ export function fmtTime(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("zh-CN", { hour12: false });
 }
 
+/** 额度指标的中文名；未知指标回退原文 */
+export function metricLabel(metric: string): string {
+  if (metric.startsWith("session_used_pct_")) return `5 小时 · ${metric.slice("session_used_pct_".length)}`;
+  switch (metric) {
+    case "weekly_used_pct":
+      return "周额度";
+    case "session_used_pct":
+      return "5 小时窗口";
+    case "monthly_used_pct":
+      return "月额度";
+    case "monthly_remaining":
+      return "月剩余";
+    case "credits_usd":
+      return "充值余额";
+    case "balance_usd":
+      return "余额 USD";
+    case "balance_cny":
+      return "余额 CNY";
+    case "month_cost_usd":
+      return "本月花费";
+    case "premium_used":
+      return "高级请求已用";
+    case "premium_remaining":
+      return "高级请求剩余";
+    case "auto_used_pct":
+      return "Cursor Models";
+    case "api_used_pct":
+      return "Other Models";
+    case "plan_used_pct":
+      return "套餐用量";
+    case "requests_used":
+      return "已用额度";
+    case "requests_remaining":
+      return "剩余额度";
+    default:
+      return metric;
+  }
+}
+
+/** 同图多条线的配色：同名指标跨 Key 颜色一致 */
+const METRIC_COLORS: Record<string, string> = {
+  weekly_used_pct: "#34d399",
+  session_used_pct: "#38bdf8",
+  monthly_used_pct: "#a78bfa",
+  monthly_remaining: "#c084fc",
+  credits_usd: "#fbbf24",
+  balance_usd: "#34d399",
+  balance_cny: "#38bdf8",
+  month_cost_usd: "#fb7185",
+  premium_used: "#a78bfa",
+  premium_remaining: "#34d399",
+  auto_used_pct: "#38bdf8",
+  api_used_pct: "#a78bfa",
+  plan_used_pct: "#34d399",
+  requests_used: "#fb7185",
+  requests_remaining: "#34d399",
+};
+
+const METRIC_FALLBACK = ["#34d399", "#38bdf8", "#a78bfa", "#fbbf24", "#fb7185", "#f472b6", "#2dd4bf", "#818cf8"];
+
+export function metricColor(metric: string): string {
+  if (METRIC_COLORS[metric]) return METRIC_COLORS[metric];
+  if (metric.startsWith("session_used_pct_")) return "#7dd3fc";
+  let h = 0;
+  for (let i = 0; i < metric.length; i++) h = (h * 31 + metric.charCodeAt(i)) >>> 0;
+  return METRIC_FALLBACK[h % METRIC_FALLBACK.length];
+}
+
+export function isPercentMetric(metric: string, unit?: string | null): boolean {
+  return unit === "percent" || metric.endsWith("_pct") || metric.includes("_pct_");
+}
+
+export function fmtQuotaValue(value: number, unit?: string | null, metric?: string): string {
+  if (isPercentMetric(metric ?? "", unit)) return `${value.toFixed(1)}%`;
+  if (unit === "usd" || unit === "USD") return "$" + value.toFixed(2);
+  if (unit === "cny" || unit === "CNY") return "¥" + value.toFixed(2);
+  if (unit === "usd_cents") return (value / 100).toLocaleString("zh-CN", { style: "currency", currency: "USD" });
+  if (Number.isInteger(value)) return value.toLocaleString("zh-CN");
+  return value.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+}
+
 export function fmtShortTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
