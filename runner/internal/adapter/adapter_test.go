@@ -214,8 +214,8 @@ func TestCodexBaseURLOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotPath != "/backend-api/codex/usage" {
-		t.Fatalf("path = %q, want /backend-api/codex/usage", gotPath)
+	if gotPath != "/backend-api/wham/usage" {
+		t.Fatalf("path = %q, want /backend-api/wham/usage", gotPath)
 	}
 	if s := findRow(rows, "session_used_pct"); s == nil || s.Value != 10 {
 		t.Fatalf("session_used_pct = %+v, want 10", s)

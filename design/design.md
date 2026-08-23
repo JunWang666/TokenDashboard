@@ -351,7 +351,7 @@ interface QuotaAdapter {
 
 | 适配器 | 方案 | 凭证 |
 |--------|------|------|
-| codex | `chatgpt.com/backend-api/codex/usage`（非官方；按 `limit_window_seconds` 区分 5 小时/周窗口） | ChatGPT 订阅 OAuth access_token（`~/.codex/auth.json`，有效期约一周，过期重新粘贴；不做 refresh 自动续期，避免使本机 CLI 登录态作废） |
+| codex | `chatgpt.com/backend-api/wham/usage`（非官方；按 `limit_window_seconds` 区分 5 小时/周窗口） | ChatGPT 订阅 OAuth access_token（`~/.codex/auth.json`，有效期约一周，过期重新粘贴；不做 refresh 自动续期，避免使本机 CLI 登录态作废） |
 | kimi | `api.kimi.com/coding/v1/usages`（Kimi Code 订阅；周额度 + 5 小时滚动窗口） | kimi.com/code 控制台的 API Key（sk-kimi-*，与开放平台 key 不互通） |
 | openai | 官方接口：`/v1/organization/costs`、`/v1/organization/usage/completions` | Admin API Key |
 | deepseek | 官方接口：`GET /user/balance` | API Key |

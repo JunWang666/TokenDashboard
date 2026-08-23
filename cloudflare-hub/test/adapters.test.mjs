@@ -83,14 +83,16 @@ test("kimi/codex: cred.base_url 覆盖默认地址（自建转发绕 WAF）", as
   await kimi.fetch({ api_key: "k", base_url: "https://relay.example.com/kimi/" }, f);
   await codex.fetch({ access_token: "t", base_url: "https://relay.example.com/backend-api" }, f);
   assert.equal(seen[0], "https://relay.example.com/kimi/usages"); // 末尾斜杠归一化
-  assert.equal(seen[1], "https://relay.example.com/backend-api/codex/usage");
+  assert.equal(seen[1], "https://relay.example.com/backend-api/wham/usage");
 });
 
 test("codex: 按 limit_window_seconds 识别 5 小时 / 周窗口", async () => {
   const f = async (url, init) => {
-    assert.equal(url, "https://chatgpt.com/backend-api/codex/usage");
+    assert.equal(url, "https://chatgpt.com/backend-api/wham/usage");
     assert.equal(init.headers.Authorization, "Bearer tok-test");
     assert.equal(init.headers["ChatGPT-Account-Id"], "acc-1");
+    // 实测默认 UA 会被对端拦 403 HTML 页，必须带 codex CLI 风格 UA
+    assert.match(init.headers["User-Agent"], /^codex_cli_rs\//);
     return json({
       plan_type: "plus",
       rate_limit: {

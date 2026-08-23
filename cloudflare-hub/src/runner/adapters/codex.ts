@@ -8,9 +8,10 @@ interface CodexWindow {
 }
 
 /**
- * chatgpt.com /backend-api/codex/usage（Codex 订阅额度，非官方；接口变动时记录 scrape_error）。
+ * chatgpt.com /backend-api/wham/usage（Codex 订阅额度，非官方；接口变动时记录 scrape_error）。
  * 凭证：~/.codex/auth.json 的 tokens.access_token（ChatGPT 订阅 OAuth token，有效期约一周，过期需重新粘贴）。
  * 可选 cred.base_url：正向转发地址（替换 https://chatgpt.com/backend-api，用于绕开对端 WAF 对 Workers 出口的拦截）。
+ * 注意：必须带 codex CLI 风格的 User-Agent——实测默认 UA 被拦返回 403 HTML 错误页（不是 401）。
  * 刻意不做 refresh_token 自动续期：refresh token 是一次性轮换的，runner 刷新会使本机 Codex CLI 登录态作废。
  */
 export const codex: QuotaAdapter = {
@@ -21,11 +22,13 @@ export const codex: QuotaAdapter = {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
+      originator: "codex_cli_rs",
+      "User-Agent": "codex_cli_rs/0.40.0",
     };
     if (cred.account_id) headers["ChatGPT-Account-Id"] = cred.account_id;
 
     const base = (cred.base_url ?? "https://chatgpt.com/backend-api").replace(/\/+$/, "");
-    const res = await f(`${base}/codex/usage`, { headers });
+    const res = await f(`${base}/wham/usage`, { headers });
     if (!res.ok) throw new Error(`codex usage: HTTP ${res.status}（access_token 可能已过期，需重新粘贴）: ${(await res.text()).slice(0, 200)}`);
     const json = (await res.json()) as {
       plan_type?: string;

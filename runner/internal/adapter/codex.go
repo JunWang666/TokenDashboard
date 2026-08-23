@@ -7,11 +7,12 @@ import (
 )
 
 // CodexUsageURL 可在测试中覆盖。
-var CodexUsageURL = "https://chatgpt.com/backend-api/codex/usage"
+var CodexUsageURL = "https://chatgpt.com/backend-api/wham/usage"
 
-// codex 适配器：Codex 订阅额度（chatgpt.com/backend-api/codex/usage，非官方）。
+// codex 适配器：Codex 订阅额度（chatgpt.com/backend-api/wham/usage，非官方）。
 // 凭证：~/.codex/auth.json 的 tokens.access_token（ChatGPT 订阅 OAuth token，有效期约一周，过期需重新粘贴）。
 // 可选 cred["base_url"]：正向转发地址，替换默认的 https://chatgpt.com/backend-api。
+// 注意：实测必须带 codex CLI 风格的 User-Agent，否则被拦返回 403 HTML 错误页（不是 401）。
 // 刻意不做 refresh_token 自动续期：refresh token 是一次性轮换的，刷新会使本机 Codex CLI 登录态作废。
 type codexAdapter struct{}
 
@@ -46,6 +47,8 @@ func (codexAdapter) Fetch(cred map[string]string) ([]Row, error) {
 	headers := map[string]string{
 		"Authorization": "Bearer " + token,
 		"Accept":        "application/json",
+		"originator":    "codex_cli_rs",
+		"User-Agent":    "codex_cli_rs/0.40.0",
 	}
 	if id := cred["account_id"]; id != "" {
 		headers["ChatGPT-Account-Id"] = id
@@ -53,7 +56,7 @@ func (codexAdapter) Fetch(cred map[string]string) ([]Row, error) {
 	var payload codexPayload
 	url := CodexUsageURL
 	if base := cred["base_url"]; base != "" {
-		url = strings.TrimRight(base, "/") + "/codex/usage"
+		url = strings.TrimRight(base, "/") + "/wham/usage"
 	}
 	if err := getJSON(url, headers, &payload); err != nil {
 		return nil, fmt.Errorf("codex usage（access_token 可能已过期，需重新粘贴）: %w", err)
