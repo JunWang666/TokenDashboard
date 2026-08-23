@@ -2,6 +2,20 @@
 
 TokenDashboard 数据中枢：Cloudflare Workers + D1。存储用量、plan 额度快照与加密的 runner 凭证，提供 ingest / 查询 / 凭证管理 API。
 
+## 支持的额度服务商
+
+| provider | 凭证字段 | 采集内容 |
+|---|---|---|
+| `codex` | `access_token` | ChatGPT/Codex 5 小时、周额度与 credits |
+| `kimi` | `api_key`，可选 `web_token` | Kimi Code 5 小时、周额度与可选月额度 |
+| `minimax` | Token Plan `api_key` | MiniMax Token Plan 5 小时、周额度；兼容多资源额度 |
+| `zai` | Coding Plan `api_key` | Z.ai / GLM Coding Plan 5 小时、周额度与 MCP 月额度；兼容 V2/V3 |
+| `claude` / `cursor` / `copilot` | session/token | 对应订阅额度（非官方接口） |
+| `openai` / `deepseek` / `glm` | 标准 `api_key` | API 花费或余额 |
+
+`minimax`、`zai` 默认使用国际站。中国站凭证可存为
+`{"api_key":"...","region":"cn"}`；自建 HTTPS 转发可额外设置 `base_url`（只接受不含认证信息、查询参数或片段的 HTTPS URL）。
+
 ## 本地开发
 
 ```bash
@@ -24,7 +38,7 @@ npx wrangler d1 migrations apply tokendash --local   # 初始化 schema
 ## 测试
 
 ```bash
-npm test          # miniflare 集成测试 + runner 适配器单测（node --test，20 个用例）
+npm test          # miniflare 集成测试 + runner 适配器单测（node --test，29 个用例）
 npm run typecheck
 ```
 

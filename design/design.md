@@ -1,7 +1,7 @@
 # TokenDashboard 设计文档
 
 > 追踪个人 token 使用量与 token plan 额度的系统。
-> 服务商范围：Anthropic Claude（订阅）、OpenAI（API 额度）、GitHub Copilot、GLM / DeepSeek 等国产模型、Cursor。
+> 服务商范围：Anthropic Claude（订阅）、OpenAI（API 额度）、GitHub Copilot、MiniMax Token Plan、Z.ai / GLM Coding Plan、Kimi、DeepSeek、Cursor。
 > 客户端用 Go 解析本地工具日志；个人使用（单 Cloudflare 账号、单用户维度，device 区分多台机器）。
 
 ## 1. 总体架构
@@ -50,7 +50,7 @@
 CREATE TABLE usage_hourly (
   id                 INTEGER PRIMARY KEY AUTOINCREMENT,
   device_id          TEXT NOT NULL,             -- 采集设备，如 "macbook-m4"
-  provider           TEXT NOT NULL,             -- claude / openai / copilot / glm / deepseek / cursor
+  provider           TEXT NOT NULL,             -- claude / openai / copilot / glm / deepseek / cursor / codex / kimi / minimax / zai
   source             TEXT NOT NULL,             -- claude-code / cursor / runner
   model              TEXT,                      -- claude-sonnet-4-5 等
   bucket_hour        TEXT NOT NULL,             -- ISO 小时桶 "2026-08-12T14:00:00Z"
@@ -67,7 +67,7 @@ CREATE TABLE usage_hourly (
 -- plan 额度快照（runner 采集，append-only）
 CREATE TABLE quota_snapshots (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  provider    TEXT NOT NULL,        -- claude / openai / copilot / glm / deepseek / cursor
+  provider    TEXT NOT NULL,        -- claude / openai / copilot / glm / deepseek / cursor / codex / kimi / minimax / zai
   metric      TEXT NOT NULL,        -- 见下表
   value       REAL NOT NULL,        -- 当前值（已用量 / 余额 / 百分比）
   limit_value REAL,                 -- 上限（若可获取）
@@ -86,7 +86,7 @@ CREATE TABLE devices (
 
 -- runner 凭证（加密存储，见「4. runner 凭证管理」）
 CREATE TABLE credentials (
-  provider    TEXT PRIMARY KEY,    -- claude / openai / copilot / glm / deepseek / cursor
+  provider    TEXT PRIMARY KEY,    -- 逻辑主键；多 key 迁移后实际为 (provider, name)
   payload_enc BLOB NOT NULL,       -- AES-256-GCM 密文（nonce ‖ ciphertext ‖ tag）
   hint        TEXT,                -- 掩码提示，如 "...sk-1a2b"，仅末 4 位，用于界面识别
   updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -102,6 +102,8 @@ CREATE TABLE credentials (
 | claude | `weekly_used_pct` | 周限额已用百分比 |
 | codex | `session_used_pct`、`weekly_used_pct`、`credits_usd` | 5 小时窗口 / 周限额已用百分比、充值余额 |
 | kimi | `weekly_used_pct`、`session_used_pct`、`monthly_used_pct` | 周额度 / 5 小时滚动窗口 / 月额度（需 web_token）已用百分比 |
+| minimax | `weekly_used_pct`、`session_used_pct` | MiniMax Token Plan 周额度 / 5 小时窗口已用百分比；其他资源用带模型后缀的同类指标 |
+| zai | `weekly_used_pct`、`session_used_pct`、`monthly_mcp_used_pct` | Z.ai / GLM Coding Plan 周额度 / 5 小时窗口 / MCP 月额度已用百分比 |
 | openai | `balance_usd`、`month_cost_usd` | 余额 / 当月花费 |
 | copilot | `premium_used`、`premium_remaining` | 高级请求额度 |
 | glm | `balance_cny` | API 余额 |

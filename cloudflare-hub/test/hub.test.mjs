@@ -267,3 +267,30 @@ test("credentials: 多 key —— 同服务商存两把，独立列出/删除", 
   // 「备用」的凭证已删，其快照不再出现在 current
   assert.equal(bals.find((r) => r.account === "备用"), undefined);
 });
+
+test("新增套餐服务商: minimax / zai 凭证与额度均可入库", async () => {
+  await put("/api/v1/credentials/minimax", { payload: { api_key: "sk-cp-minimax" } }, user);
+  await put("/api/v1/credentials/zai", { payload: { api_key: "zai-plan-key" } }, user);
+
+  const internal = await (
+    await get("/api/v1/internal/credentials", { headers: { "X-Tokendash-Internal": KEY_B64 } })
+  ).json();
+  assert.equal(internal.minimax[0].api_key, "sk-cp-minimax");
+  assert.equal(internal.zai[0].api_key, "zai-plan-key");
+
+  const result = await post(
+    "/api/v1/ingest/quota",
+    { rows: [
+      { provider: "minimax", metric: "weekly_used_pct", account: "默认", value: 35, unit: "percent" },
+      { provider: "zai", metric: "session_used_pct", account: "默认", value: 42, unit: "percent" },
+    ] },
+    runner,
+  );
+  assert.equal(result.status, 200);
+  const current = await (await get("/api/v1/quota/current", user)).json();
+  assert.equal(current.rows.find((r) => r.provider === "minimax").value, 35);
+  assert.equal(current.rows.find((r) => r.provider === "zai").value, 42);
+
+  await get("/api/v1/credentials/minimax", { method: "DELETE", headers: user.headers });
+  await get("/api/v1/credentials/zai", { method: "DELETE", headers: user.headers });
+});

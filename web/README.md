@@ -8,7 +8,7 @@ React + Vite + Tailwind + Recharts 仪表盘，部署到 Cloudflare Pages。
 - **用量**：按 provider/model 堆叠柱状图（小时/天切换），明细表（token 分解 + 估算花费）
 - **额度**：每个 (provider, metric) 的历史曲线（观察消耗速率）
 - **设备**：各采集设备最近上报时间，掉线高亮
-- **凭证管理**：runner 凭证录入/删除（hint 末 4 位、更新时间、来源、采集状态）
+- **凭证管理**：runner 凭证录入/删除（hint 末 4 位、更新时间、来源、采集状态），含 MiniMax Token Plan 与 Z.ai / GLM Coding Plan 套餐 Key
 
 ## 开发
 

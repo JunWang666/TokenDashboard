@@ -36,6 +36,18 @@ const CRED_FIELDS: Record<
     },
     hint: "api_key 在 kimi.com/code 控制台创建（非开放平台 sk- key，两者不互通）。月额度需另填网页 token：登录 kimi.com → F12 → Network → 任一 /apiv2/ 请求 → 复制 Authorization 头里 Bearer 后的内容。如需走自建转发，用 client push-credential 推 JSON：{\"api_key\":\"...\",\"base_url\":\"https://你的转发/kimi\"}",
   },
+  minimax: {
+    field: "api_key",
+    label: "MiniMax Token Plan Subscription Key",
+    placeholder: "sk-cp-...",
+    hint: "必须填写 Token Plan 套餐专属 Key，不是普通按量 API Key。默认使用国际站；中国站可由客户端推送 JSON：{\"api_key\":\"...\",\"region\":\"cn\"}",
+  },
+  zai: {
+    field: "api_key",
+    label: "Z.ai / GLM Coding Plan API Key",
+    placeholder: "填写套餐专属 API Key",
+    hint: "默认查询 api.z.ai；智谱国内 Coding Plan 可由客户端推送 JSON：{\"api_key\":\"...\",\"region\":\"cn\"}",
+  },
   cursor: {
     field: "session",
     label: "Cursor cookie 串",

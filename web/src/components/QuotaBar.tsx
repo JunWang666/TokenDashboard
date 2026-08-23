@@ -43,6 +43,24 @@ export function quotaDisplay(provider: string, rows: QuotaCurrentRow[] | undefin
       if (monthly) out.push(pctDisplay("月额度", monthly, shortReset(monthly.reset_at)));
       return out;
     }
+    case "minimax": {
+      const out: QuotaDisplay[] = [];
+      const weekly = by("weekly_used_pct");
+      if (weekly) out.push(pctDisplay("周额度", weekly, shortReset(weekly.reset_at)));
+      const session = by("session_used_pct");
+      if (session) out.push(pctDisplay("5 小时窗口", session, shortReset(session.reset_at)));
+      return out;
+    }
+    case "zai": {
+      const out: QuotaDisplay[] = [];
+      const weekly = by("weekly_used_pct");
+      if (weekly) out.push(pctDisplay("周额度", weekly, shortReset(weekly.reset_at)));
+      const session = by("session_used_pct");
+      if (session) out.push(pctDisplay("5 小时窗口", session, shortReset(session.reset_at)));
+      const mcp = by("monthly_mcp_used_pct");
+      if (mcp) out.push(pctDisplay("月 MCP 额度", mcp, shortReset(mcp.reset_at)));
+      return out;
+    }
     case "openai": {
       const s = by("month_cost_usd");
       if (!s) return [];

@@ -8,6 +8,8 @@ import { mkdirSync } from "node:fs";
 let kimi;
 let codex;
 let cursor;
+let minimax;
+let zai;
 let runAdapter;
 
 before(async () => {
@@ -20,7 +22,7 @@ before(async () => {
     platform: "browser",
     logLevel: "silent",
   });
-  ({ kimi, codex, cursor } = await import("../dist/adapters.mjs").then((m) => m.adapters));
+  ({ kimi, codex, cursor, minimax, zai } = await import("../dist/adapters.mjs").then((m) => m.adapters));
   ({ runAdapter } = await import("../dist/adapters.mjs"));
 });
 
@@ -205,4 +207,141 @@ test("cursor: 无分项字段时仍出总占比；缺 plan 抛错", async () => 
   assert.equal(rows.find((r) => r.metric === "plan_used_pct").value, 5);
   const err = await runAdapter("cursor", { session: "s" }, async () => json({}));
   assert.equal(err[0].metric, "scrape_error");
+});
+
+test("minimax: Token Plan 剩余百分比转换为 5 小时 / 周已用百分比", async () => {
+  const f = async (url, init) => {
+    assert.equal(url, "https://api.minimax.io/v1/token_plan/remains");
+    assert.equal(init.headers.Authorization, "Bearer sk-cp-test");
+    return json({
+      model_remains: [
+        {
+          model_name: "general",
+          end_time: 1787580000000,
+          weekly_end_time: 1788048000000,
+          current_interval_remaining_percent: 35,
+          current_weekly_remaining_percent: 80,
+        },
+      ],
+      base_resp: { status_code: 0, status_msg: "success" },
+    });
+  };
+  const rows = await minimax.fetch({ api_key: "sk-cp-test" }, f);
+  assert.equal(rows.find((r) => r.metric === "session_used_pct").value, 65);
+  assert.equal(rows.find((r) => r.metric === "weekly_used_pct").value, 20);
+  assert.equal(
+    rows.find((r) => r.metric === "session_used_pct").reset_at,
+    new Date(1787580000000).toISOString(),
+  );
+});
+
+test("minimax: 兼容 usage_count 实为剩余额度的旧响应，并保留多资源指标", async () => {
+  const rows = await minimax.fetch(
+    { api_key: "k", region: "cn" },
+    async (url) => {
+      assert.equal(url, "https://api.minimaxi.com/v1/token_plan/remains");
+      return json({
+        model_remains: [
+          {
+            model_name: "general",
+            current_interval_total_count: 100,
+            current_interval_usage_count: 70,
+            current_weekly_total_count: 1000,
+            current_weekly_usage_count: 750,
+          },
+          {
+            model_name: "video-fast",
+            current_interval_total_count: 10,
+            current_interval_usage_count: 7,
+            current_weekly_total_count: 20,
+            current_weekly_usage_count: 5,
+          },
+        ],
+      });
+    },
+  );
+  assert.equal(rows.find((r) => r.metric === "session_used_pct").value, 30);
+  assert.equal(rows.find((r) => r.metric === "weekly_used_pct").value, 25);
+  assert.equal(rows.find((r) => r.metric === "session_used_pct_video-fast").value, 30);
+  assert.equal(rows.find((r) => r.metric === "weekly_used_pct_video-fast").value, 75);
+});
+
+test("minimax: API 业务错误转 scrape_error", async () => {
+  const rows = await runAdapter("minimax", { api_key: "bad" }, async () =>
+    json({ base_resp: { status_code: 1004, status_msg: "not authorized" } }),
+  );
+  assert.equal(rows[0].metric, "scrape_error");
+  assert.ok(String(rows[0].reset_at).includes("1004"));
+});
+
+test("zai: V3 CREDIT_LIMIT 在旧路径失败后回退新 usage 路径", async () => {
+  const seen = [];
+  const f = async (url, init) => {
+    seen.push(url);
+    assert.equal(init.headers.Authorization, "zai-plan-key");
+    if (url.endsWith("/quota/limit")) return json({ msg: "token expired or incorrect" }, 401);
+    return json({
+      code: 200,
+      success: true,
+      data: {
+        limits: [
+          { type: "CREDIT_LIMIT", unit: 3, number: 5, usage: 2000, currentValue: 1653, percentage: 82, nextResetTime: 1787176502893 },
+          { type: "CREDIT_LIMIT", unit: 6, number: 1, usage: 10000, currentValue: 4562, percentage: 45, nextResetTime: 1787607163997 },
+        ],
+      },
+    });
+  };
+  const rows = await zai.fetch({ api_key: "zai-plan-key" }, f);
+  assert.deepEqual(seen, [
+    "https://api.z.ai/api/monitor/usage/quota/limit",
+    "https://api.z.ai/api/monitor/usage",
+  ]);
+  assert.equal(rows.find((r) => r.metric === "session_used_pct").value, 82);
+  assert.equal(rows.find((r) => r.metric === "weekly_used_pct").value, 45);
+  assert.equal(rows.find((r) => r.metric === "session_used_pct").reset_at, new Date(1787176502893).toISOString());
+});
+
+test("zai: 国内站兼容 TOKENS_LIMIT / TIME_LIMIT 旧响应", async () => {
+  let calls = 0;
+  const rows = await zai.fetch({ api_key: "glm-plan-key", region: "cn" }, async (url) => {
+    calls += 1;
+    assert.equal(url, "https://open.bigmodel.cn/api/monitor/usage/quota/limit");
+    return json({
+      success: true,
+      code: 200,
+      data: {
+        limits: [
+          { type: "TOKENS_LIMIT", unit: 3, usage: 500, currentValue: 125 },
+          { type: "TOKENS_LIMIT", unit: 6, percentage: 10 },
+          { type: "TIME_LIMIT", unit: 5, percentage: 60 },
+        ],
+      },
+    });
+  });
+  assert.equal(calls, 1);
+  assert.equal(rows.find((r) => r.metric === "session_used_pct").value, 25);
+  assert.equal(rows.find((r) => r.metric === "weekly_used_pct").value, 10);
+  assert.equal(rows.find((r) => r.metric === "monthly_mcp_used_pct").value, 60);
+});
+
+test("zai: 两个额度路径都不可用时给出可诊断错误", async () => {
+  const rows = await runAdapter("zai", { api_key: "bad" }, async () => json({}, 404));
+  assert.equal(rows[0].metric, "scrape_error");
+  assert.ok(String(rows[0].reset_at).includes("quota/limit"));
+  assert.ok(String(rows[0].reset_at).includes("/usage"));
+});
+
+test("minimax/zai: 拒绝会泄漏套餐 Key 的非 HTTPS base_url", async () => {
+  let called = false;
+  const f = async () => {
+    called = true;
+    return json({});
+  };
+  const minimaxRows = await runAdapter("minimax", { api_key: "k", base_url: "http://relay.example" }, f);
+  const zaiRows = await runAdapter("zai", { api_key: "k", base_url: "https://key@relay.example" }, f);
+  assert.equal(called, false);
+  assert.equal(minimaxRows[0].metric, "scrape_error");
+  assert.equal(zaiRows[0].metric, "scrape_error");
+  assert.match(String(minimaxRows[0].reset_at), /HTTPS/);
+  assert.match(String(zaiRows[0].reset_at), /HTTPS/);
 });

@@ -16,7 +16,7 @@
 
 | 目录 | 职责 | 状态 |
 |------|------|------|
-| [cloudflare-hub](cloudflare-hub/README.md) | Workers + D1：usage/quota 存储，ingest/query/credentials API，Access JWT 校验，AES-256-GCM 凭证加密，cron 额度采集（`src/runner/`：codex/kimi/openai/deepseek/glm/copilot/claude/cursor 适配器） | ✅ 已实现，20 个测试用例 |
+| [cloudflare-hub](cloudflare-hub/README.md) | Workers + D1：usage/quota 存储，ingest/query/credentials API，Access JWT 校验，AES-256-GCM 凭证加密，cron 额度采集（`src/runner/`：Codex、Kimi、MiniMax Token Plan、Z.ai Coding Plan、OpenAI、DeepSeek、GLM、Copilot、Claude、Cursor） | ✅ 已实现，29 个测试用例 |
 | [web](web/README.md) | Pages 前端：Overview / Usage / Quota / Devices / Credentials | ✅ 已实现，构建通过 |
 | [client](client/README.md) | 桌面采集器（Go + Wails）+ headless CLI：claude-code/cursor 采集、spool 离线缓冲、loopback Access 登录、凭证推送 | ✅ 已实现，Go 测试通过 |
 | [runner](runner/README.md) | Go 独立额度采集器（kimi/codex 适配器，Docker 部署）：对端 WAF 拦截 Workers 出口请求的 provider 由它采集 | ✅ 已实现，Go 测试通过 |
@@ -79,5 +79,6 @@ cd client && go build ./cmd/tokendash
 - [x] M4 runner：凭证拉取 + openai / deepseek / glm 适配器
 - [x] M5 runner：copilot / claude / cursor 非官方适配器（容错记录 scrape_error）
 - [x] M6 client：cursor collector
+- [x] M7 runner：MiniMax Token Plan + Z.ai / GLM Coding Plan（5 小时、周额度，兼容新旧接口）
 
 > 注：生产部署到 Cloudflare 时，`DEV_TOKEN`（本地开发用）绝不配置。
