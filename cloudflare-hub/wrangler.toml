@@ -30,5 +30,5 @@ migrations_dir = "migrations"
 [vars]
 ACCESS_TEAM = "gouzuang"
 ACCESS_AUD = "138aeabac84c1cd9e670ea466c676263b9fd4751129aa765c9e0aebc1a0172c6"
-RUNNER_SERVICE_TOKENS = "f178899567adaece05c4cde7775c139f.access"
+RUNNER_SERVICE_TOKENS = "29d9f8f51ba251fa66ffffe504bc17b8.access"
 HUB_URL = "https://token.goudaijun.top"
