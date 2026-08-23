@@ -26,11 +26,13 @@ export function quotaDisplay(provider: string, rows: QuotaCurrentRow[] | undefin
     }
     case "codex":
     case "kimi": {
-      // 订阅额度：优先周窗口，退到 5 小时窗口；reset_at 是完整 ISO，截短展示
-      const s = by("weekly_used_pct") ?? by("session_used_pct");
-      if (!s) return [];
-      const label = s.metric === "weekly_used_pct" ? "周额度" : "5 小时窗口";
-      return [pctDisplay(label, s, shortReset(s.reset_at))];
+      // 订阅额度：周窗口 + 5 小时窗口都展示；reset_at 是完整 ISO，截短展示
+      const out: QuotaDisplay[] = [];
+      const weekly = by("weekly_used_pct");
+      if (weekly) out.push(pctDisplay("周额度", weekly, shortReset(weekly.reset_at)));
+      const session = by("session_used_pct");
+      if (session) out.push(pctDisplay("5 小时窗口", session, shortReset(session.reset_at)));
+      return out;
     }
     case "openai": {
       const s = by("month_cost_usd");
