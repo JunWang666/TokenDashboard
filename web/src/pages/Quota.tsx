@@ -41,8 +41,8 @@ function groupKeys(current: QuotaCurrentRow[], history: QuotaHistoryRow[]): KeyG
     return map.get(id)!;
   };
   for (const r of current) {
-    if (r.metric === "scrape_error") continue;
-    add(r.provider, r.account).current.push(r);
+    const g = add(r.provider, r.account);
+    if (r.metric !== "scrape_error") g.current.push(r);
   }
   for (const r of history) {
     if (r.metric === "scrape_error") continue;
