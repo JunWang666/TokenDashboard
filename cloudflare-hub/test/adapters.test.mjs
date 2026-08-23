@@ -50,6 +50,28 @@ test("kimi: 周额度 + 5 小时窗口解析", async () => {
   assert.equal(session.reset_at, "2026-08-23T20:00:00Z");
 });
 
+test("kimi: 配了 web_token 时追加月额度（DOMAIN_CODE 无余额退 DOMAIN_KIMI）", async () => {
+  const domains = [];
+  const f = async (url, init) => {
+    if (url.endsWith("/usages")) return json({ usage: { limit: "100", remaining: "80" } });
+    assert.ok(url.endsWith("MembershipService/GetSubscriptionStats"));
+    assert.equal(init.headers["Connect-Protocol-Version"], "1");
+    const domain = JSON.parse(init.body).domain;
+    domains.push(domain);
+    if (domain === "DOMAIN_CODE") return json({});
+    return json({
+      // 实测响应是 camelCase，且无 amount/amountLeft 绝对值
+      subscriptionBalance: { amountUsedRatio: 0.25, expireTime: "2026-09-01T00:00:00Z" },
+    });
+  };
+  const rows = await kimi.fetch({ api_key: "sk-kimi-test", web_token: "web-tok", stats_base_url: "https://stats.example" }, f);
+  const monthly = rows.find((r) => r.metric === "monthly_used_pct");
+  assert.equal(monthly.value, 25);
+  assert.equal(monthly.reset_at, "2026-09-01T00:00:00Z");
+  assert.equal(rows.find((r) => r.metric === "monthly_remaining"), undefined);
+  assert.deepEqual(domains, ["DOMAIN_CODE", "DOMAIN_KIMI"]);
+});
+
 test("kimi: 数值为数字形态 + 窗口只有 remaining 无 used", async () => {
   const f = async () =>
     json({

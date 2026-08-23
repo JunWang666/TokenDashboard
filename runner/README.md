@@ -70,7 +70,7 @@ HUB_URL=... CF_ACCESS_CLIENT_ID=... CF_ACCESS_CLIENT_SECRET=... ./tokendash-runn
 
 | provider | 接口 | 凭证字段 |
 |----------|------|----------|
-| kimi | `api.kimi.com/coding/v1/usages` | `api_key`（kimi.com/code 控制台的 sk-kimi- key），可选 `base_url` |
+| kimi | `api.kimi.com/coding/v1/usages`（周/5h 窗口）+ `www.kimi.com/apiv2/.../GetSubscriptionStats`（月额度，connect RPC） | `api_key`（kimi.com/code 控制台的 sk-kimi- key），可选 `web_token`（网页登录态，采月额度）、`base_url` |
 | codex | `chatgpt.com/backend-api/wham/usage` | `access_token`（~/.codex/auth.json，可选 `account_id`），可选 `base_url` |
 
 ### 自建转发（base_url）

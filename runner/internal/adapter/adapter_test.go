@@ -111,6 +111,65 @@ func TestKimiHTTPErrorCarriesBody(t *testing.T) {
 	}
 }
 
+func TestKimiMonthlyViaWebToken(t *testing.T) {
+	// 配了 web_token 时追加月额度：DOMAIN_CODE 先试，无订阅余额退到 DOMAIN_KIMI
+	var domains []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/usages") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"usage": map[string]any{"limit": "100", "remaining": "80", "resetTime": "2026-08-28T00:00:00Z"},
+			})
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "MembershipService/GetSubscriptionStats") {
+			var req map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			domains = append(domains, req["domain"])
+			if r.Header.Get("Connect-Protocol-Version") != "1" {
+				t.Error("connect 协议头缺失")
+			}
+			if req["domain"] == "DOMAIN_CODE" {
+				_ = json.NewEncoder(w).Encode(map[string]any{}) // 无 subscription_balance → 退 KIMI
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				// 实测响应是 camelCase，且无 amount/amountLeft 绝对值
+				"subscriptionBalance": map[string]any{
+					"amountUsedRatio": 0.25, "expireTime": "2026-09-01T00:00:00Z",
+				},
+			})
+			return
+		}
+		t.Errorf("unexpected path: %s", r.URL.Path)
+	}))
+	defer srv.Close()
+
+	old := KimiUsageURL
+	KimiUsageURL = srv.URL + "/usages"
+	defer func() { KimiUsageURL = old }()
+
+	rows, err := kimiAdapter{}.Fetch(map[string]string{
+		"api_key": "sk-kimi-test", "web_token": "web-tok", "stats_base_url": srv.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := findRow(rows, "monthly_used_pct")
+	if m == nil || m.Value != 25 {
+		t.Fatalf("monthly_used_pct = %+v, want 25", m)
+	}
+	if m.ResetAt == nil || *m.ResetAt != "2026-09-01T00:00:00Z" {
+		t.Fatalf("monthly reset_at = %v", m.ResetAt)
+	}
+	if r := findRow(rows, "monthly_remaining"); r != nil {
+		t.Fatalf("无 amount/amountLeft 时不应有 monthly_remaining: %+v", r)
+	}
+	if len(domains) != 2 || domains[0] != "DOMAIN_CODE" || domains[1] != "DOMAIN_KIMI" {
+		t.Fatalf("domain 回退顺序错误: %v", domains)
+	}
+}
+
 func TestCodexWindowsClassifiedByDuration(t *testing.T) {
 	reset5h := 1786536977.0
 	resetWeek := 1787049600.0

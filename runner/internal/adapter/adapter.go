@@ -2,6 +2,7 @@
 package adapter
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -75,6 +76,27 @@ func getJSON(url string, headers map[string]string, out any) error {
 	if err != nil {
 		return err
 	}
+	return doJSON(req, headers, out)
+}
+
+// postJSON 发 POST JSON 请求并解析响应。
+func postJSON(url string, headers map[string]string, body any, out any) error {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	if headers == nil {
+		headers = map[string]string{}
+	}
+	headers["Content-Type"] = "application/json"
+	return doJSON(req, headers, out)
+}
+
+func doJSON(req *http.Request, headers map[string]string, out any) error {
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

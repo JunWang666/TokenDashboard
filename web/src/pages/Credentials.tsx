@@ -5,7 +5,10 @@ import { scrapeError, CopyableError } from "../components/QuotaBar";
 import { PROVIDERS, fmtTime, providerMeta } from "../format";
 import type { CredentialRow, CredentialsResponse, QuotaCurrentResponse } from "../types";
 
-const CRED_FIELDS: Record<string, { field: string; label: string; placeholder: string; hint?: string }> = {
+const CRED_FIELDS: Record<
+  string,
+  { field: string; label: string; placeholder: string; extra?: { field: string; label: string; placeholder: string }; hint?: string }
+> = {
   openai: { field: "api_key", label: "Admin/Org API Key", placeholder: "sk-..." },
   deepseek: { field: "api_key", label: "DeepSeek API Key", placeholder: "sk-..." },
   glm: { field: "api_key", label: "智谱 API Key", placeholder: "sk-..." },
@@ -26,7 +29,12 @@ const CRED_FIELDS: Record<string, { field: string; label: string; placeholder: s
     field: "api_key",
     label: "Kimi Code API Key",
     placeholder: "sk-kimi-...",
-    hint: "在 kimi.com/code 控制台创建；注意不是 platform.moonshot.cn 开放平台的 sk- key，两者不互通。如需走自建转发，用 client push-credential 推 JSON：{\"api_key\":\"...\",\"base_url\":\"https://你的转发/kimi\"}",
+    extra: {
+      field: "web_token",
+      label: "网页 access_token（可选，采月额度）",
+      placeholder: "eyJhbGciOi...",
+    },
+    hint: "api_key 在 kimi.com/code 控制台创建（非开放平台 sk- key，两者不互通）。月额度需另填网页 token：登录 kimi.com → F12 → Network → 任一 /apiv2/ 请求 → 复制 Authorization 头里 Bearer 后的内容。如需走自建转发，用 client push-credential 推 JSON：{\"api_key\":\"...\",\"base_url\":\"https://你的转发/kimi\"}",
   },
   cursor: {
     field: "session",
@@ -198,6 +206,7 @@ function AddKeyForm({ provider, onDone, onChanged }: { provider: string; onDone:
   const meta = CRED_FIELDS[provider];
   const [name, setName] = useState("");
   const [secret, setSecret] = useState("");
+  const [extraVal, setExtraVal] = useState("");
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -207,9 +216,12 @@ function AddKeyForm({ provider, onDone, onChanged }: { provider: string; onDone:
     setSaving(true);
     setMsg(null);
     try {
-      await api.putCredential(provider, { [meta.field]: secret.trim() }, name.trim() || undefined);
+      const payload: Record<string, string> = { [meta.field]: secret.trim() };
+      if (meta.extra && extraVal.trim()) payload[meta.extra.field] = extraVal.trim();
+      await api.putCredential(provider, payload, name.trim() || undefined);
       setMsg({ ok: true, text: "已保存（下一轮 cron 自动生效）" });
       setSecret("");
+      setExtraVal("");
       setName("");
       onChanged();
     } catch (e) {
@@ -259,6 +271,19 @@ function AddKeyForm({ provider, onDone, onChanged }: { provider: string; onDone:
             </button>
           </div>
         </div>
+        {meta.extra && (
+          <div className="sm:col-span-2">
+            <label className="text-xs text-slate-500">{meta.extra.label}</label>
+            <input
+              type={show ? "text" : "password"}
+              value={extraVal}
+              onChange={(e) => setExtraVal(e.target.value)}
+              placeholder={meta.extra.placeholder}
+              autoComplete="off"
+              className={`mt-1 ${inputCls} font-mono`}
+            />
+          </div>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <button

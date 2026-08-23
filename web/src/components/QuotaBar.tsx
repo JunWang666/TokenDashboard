@@ -24,14 +24,23 @@ export function quotaDisplay(provider: string, rows: QuotaCurrentRow[] | undefin
       const s = by("weekly_used_pct") ?? by("session_used_pct");
       return s ? [pctDisplay("周额度", s, null)] : [];
     }
-    case "codex":
-    case "kimi": {
-      // 订阅额度：周窗口 + 5 小时窗口都展示；reset_at 是完整 ISO，截短展示
+    case "codex": {
+      // 订阅额度：周窗口 + 5 小时窗口；reset_at 是完整 ISO，截短展示
       const out: QuotaDisplay[] = [];
       const weekly = by("weekly_used_pct");
       if (weekly) out.push(pctDisplay("周额度", weekly, shortReset(weekly.reset_at)));
       const session = by("session_used_pct");
       if (session) out.push(pctDisplay("5 小时窗口", session, shortReset(session.reset_at)));
+      return out;
+    }
+    case "kimi": {
+      const out: QuotaDisplay[] = [];
+      const weekly = by("weekly_used_pct");
+      if (weekly) out.push(pctDisplay("周额度", weekly, shortReset(weekly.reset_at)));
+      const session = by("session_used_pct");
+      if (session) out.push(pctDisplay("5 小时窗口", session, shortReset(session.reset_at)));
+      const monthly = by("monthly_used_pct"); // 需配置网页 web_token 才采集
+      if (monthly) out.push(pctDisplay("月额度", monthly, shortReset(monthly.reset_at)));
       return out;
     }
     case "openai": {

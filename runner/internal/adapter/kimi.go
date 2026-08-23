@@ -14,6 +14,7 @@ var KimiUsageURL = "https://api.kimi.com/coding/v1/usages"
 // OAuth access_token 仅 15 分钟有效，不适合定时采集。
 // 可选 cred["base_url"]：正向转发地址（如 https://relay.example.com/kimi），替换默认的
 // https://api.kimi.com/coding/v1。
+// 可选 cred["web_token"]：kimi.com 网页登录态 access_token，用于采集月额度（见 fetchKimiMonthly）。
 // 注意：官方声明篡改 User-Agent 视为违规，这里不自定义 UA。
 type kimiAdapter struct{}
 
@@ -123,5 +124,109 @@ func (kimiAdapter) Fetch(cred map[string]string) ([]Row, error) {
 	if len(rows) == 0 {
 		return nil, fmt.Errorf("kimi: no usage/limits in response")
 	}
+
+	// 月额度（可选，需要网页登录态 token）
+	monthly, err := fetchKimiMonthly(cred)
+	if err != nil {
+		return nil, err
+	}
+	rows = append(rows, monthly...)
 	return rows, nil
+}
+
+// kimiStatsResponse 是 GetSubscriptionStats 的响应。
+// 注意：实测服务端返回的是 camelCase（subscriptionBalance/amountUsedRatio），
+// 尽管前端 client 配了 useProtoFieldName——两种形态都兼容。
+type kimiStatsResponse struct {
+	SubscriptionBalance      *kimiBalance `json:"subscriptionBalance"`
+	SubscriptionBalanceSnake *kimiBalance `json:"subscription_balance"`
+}
+
+type kimiBalance struct {
+	Amount               any     `json:"amount"`
+	AmountLeft           any     `json:"amountLeft"`
+	AmountLeftSnake      any     `json:"amount_left"`
+	AmountUsedRatio      float64 `json:"amountUsedRatio"`
+	AmountUsedRatioSnake float64 `json:"amount_used_ratio"`
+	ExpireTime           string  `json:"expireTime"` // protobuf Timestamp 的 JSON 形态是 RFC3339 字符串
+	ExpireTimeSnake      string  `json:"expire_time"`
+}
+
+func (b *kimiBalance) left() any {
+	if b.AmountLeft != nil {
+		return b.AmountLeft
+	}
+	return b.AmountLeftSnake
+}
+
+func (b *kimiBalance) usedRatio() float64 {
+	if b.AmountUsedRatio != 0 {
+		return b.AmountUsedRatio
+	}
+	return b.AmountUsedRatioSnake
+}
+
+func (b *kimiBalance) expire() string {
+	if b.ExpireTime != "" {
+		return b.ExpireTime
+	}
+	return b.ExpireTimeSnake
+}
+
+// fetchKimiMonthly 采集月额度：kimi.com 网页版会员接口（connect RPC，proto 定义取自
+// kimi.com 前端包 kimi.gateway.membership.v2.MembershipService.GetSubscriptionStats）。
+// 月额度不在 coding/v1/usages 里；Kimi Code 的月额度在 DOMAIN_CODE，与主站会员共享时退到 DOMAIN_KIMI。
+func fetchKimiMonthly(cred map[string]string) ([]Row, error) {
+	webToken := cred["web_token"]
+	if webToken == "" {
+		return nil, nil
+	}
+	base := cred["stats_base_url"]
+	if base == "" {
+		base = "https://www.kimi.com/apiv2"
+	}
+	url := strings.TrimRight(base, "/") + "/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats"
+	headers := map[string]string{
+		"Authorization":            "Bearer " + webToken,
+		"Connect-Protocol-Version": "1",
+		"Accept":                   "application/json",
+	}
+	for _, domain := range []string{"DOMAIN_CODE", "DOMAIN_KIMI"} {
+		var resp kimiStatsResponse
+		if err := postJSON(url, headers, map[string]string{"domain": domain}, &resp); err != nil {
+			return nil, fmt.Errorf("kimi stats(%s)（web_token 可能已过期，需重新粘贴）: %w", domain, err)
+		}
+		b := resp.SubscriptionBalance
+		if b == nil {
+			b = resp.SubscriptionBalanceSnake
+		}
+		if b == nil {
+			continue
+		}
+		amount, left := num(b.Amount), num(b.left())
+		pct := b.usedRatio() * 100
+		if pct == 0 && amount > 0 {
+			pct = (amount - left) / amount * 100
+		}
+		rows := []Row{{
+			Provider:   "kimi",
+			Metric:     "monthly_used_pct",
+			Value:      math.Round(pct*10) / 10,
+			Unit:       strptr("percent"),
+			LimitValue: fptr(100),
+			ResetAt:    strptrOrNil(b.expire()),
+		}}
+		if amount > 0 {
+			rows = append(rows, Row{
+				Provider:   "kimi",
+				Metric:     "monthly_remaining",
+				Value:      left,
+				Unit:       strptr("credits"),
+				LimitValue: fptr(amount),
+				ResetAt:    strptrOrNil(b.expire()),
+			})
+		}
+		return rows, nil
+	}
+	return nil, nil // 有 web_token 但无订阅余额（未订阅会员）：不报错，只是没有月额度行
 }
