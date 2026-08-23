@@ -89,23 +89,40 @@ function shortReset(iso: string | null): string | null {
   return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export function scrapeError(provider: string, rows: QuotaCurrentRow[] | undefined, account = ""): string | null {
-  const err = rows?.find((r) => r.provider === provider && r.metric === "scrape_error" && r.account === account);
-  if (!err) return null;
-  // 已有比该错误更新的成功快照 → 视为已恢复，不再报红
-  const recovered = rows?.some(
-    (r) =>
-      r.provider === provider &&
-      r.account === account &&
-      r.metric !== "scrape_error" &&
-      r.captured_at >= err.captured_at,
-  );
+/** 采集错误信息：partial=true 表示同轮仍有成功快照（部分指标失败），卡片应正常显示数据并带警告 */
+export interface ScrapeError {
+  message: string;
+  partial: boolean;
+}
+
+/** 非错误占位行的指标名（错误信息存在 reset_at） */
+const ERROR_METRICS = new Set(["scrape_error", "scrape_warn"]);
+
+export function scrapeError(
+  provider: string,
+  rows: QuotaCurrentRow[] | undefined,
+  account = "",
+): ScrapeError | null {
+  const match = (r: QuotaCurrentRow) => r.provider === provider && r.account === account;
+  const isData = (r: QuotaCurrentRow) => !ERROR_METRICS.has(r.metric);
+
+  // scrape_error：整轮失败。有更新（或同轮）的成功快照 → 已恢复，不再报红
+  const err = rows?.find((r) => match(r) && r.metric === "scrape_error");
+  if (err) {
+    const recovered = rows?.some((r) => match(r) && isData(r) && r.captured_at >= err.captured_at);
+    if (!recovered) return { message: String(err.reset_at ?? "未知错误"), partial: false };
+  }
+
+  // scrape_warn：部分指标失败（适配器同轮已产出成功行）。下一轮全成功后被更新的数据行覆盖 → 视为恢复
+  const warn = rows?.find((r) => match(r) && r.metric === "scrape_warn");
+  if (!warn) return null;
+  const recovered = rows?.some((r) => match(r) && isData(r) && r.captured_at > warn.captured_at);
   if (recovered) return null;
-  return String(err.reset_at ?? "未知错误");
+  return { message: String(warn.reset_at ?? "未知错误"), partial: true };
 }
 
 /** 采集失败错误文本 + 一键复制按钮（完整错误可能很长，卡片里显示不全） */
-export function CopyableError({ err }: { err: string }) {
+export function CopyableError({ err, tone = "red" }: { err: string; tone?: "red" | "amber" }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -122,11 +139,15 @@ export function CopyableError({ err }: { err: string }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+  const cls =
+    tone === "amber"
+      ? "border-amber-500/40 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400"
+      : "border-red-500/40 text-red-500 hover:bg-red-500/10 dark:text-red-400";
   return (
     <button
       onClick={copy}
       title="复制完整错误"
-      className="flex shrink-0 items-center gap-1 rounded border border-red-500/40 px-1.5 py-0.5 text-xs text-red-500 transition-colors hover:bg-red-500/10 dark:text-red-400"
+      className={`flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-xs transition-colors ${cls}`}
     >
       {copied ? (
         "已复制"

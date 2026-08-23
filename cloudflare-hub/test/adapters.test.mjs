@@ -72,6 +72,25 @@ test("kimi: 配了 web_token 时追加月额度（DOMAIN_CODE 无余额退 DOMAI
   assert.deepEqual(domains, ["DOMAIN_CODE", "DOMAIN_KIMI"]);
 });
 
+test("kimi: 月额度失败降级为 scrape_warn，不拖垮整卡", async () => {
+  const f = async (url) => {
+    if (url.endsWith("/usages")) return json({ usage: { limit: "100", remaining: "80" } });
+    return json({}, 401); // web_token 过期
+  };
+  const rows = await runAdapter(
+    "kimi",
+    { api_key: "sk-kimi-test", web_token: "expired", stats_base_url: "https://stats.example" },
+    f,
+  );
+  // 不应出现 scrape_error（整卡失败），周额度行保留 + scrape_warn 行
+  assert.equal(rows.find((r) => r.metric === "scrape_error"), undefined);
+  assert.equal(rows.find((r) => r.metric === "weekly_used_pct").value, 20);
+  const warn = rows.find((r) => r.metric === "scrape_warn");
+  assert.ok(warn, "应有 scrape_warn 行");
+  assert.ok(String(warn.reset_at).includes("月额度采集失败"));
+  assert.ok(String(warn.reset_at).includes("HTTP 401"));
+});
+
 test("kimi: 数值为数字形态 + 窗口只有 remaining 无 used", async () => {
   const f = async () =>
     json({

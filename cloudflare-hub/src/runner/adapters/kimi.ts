@@ -88,7 +88,19 @@ export const kimi: QuotaAdapter = {
     }
 
     if (rows.length === 0) throw new Error("kimi: no usage/limits in response");
-    rows.push(...(await fetchMonthly(cred, f)));
+    // 月额度是可选采集项：失败不应拖垮整卡，追加 scrape_warn 行（web 端显示部分失败警告）
+    try {
+      rows.push(...(await fetchMonthly(cred, f)));
+    } catch (e) {
+      rows.push({
+        provider: "kimi",
+        metric: "scrape_warn",
+        value: 1,
+        unit: "error",
+        limit_value: null,
+        reset_at: `月额度采集失败: ${String(e).slice(0, 450)}`,
+      });
+    }
     return rows;
   },
 };

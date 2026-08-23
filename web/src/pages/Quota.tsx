@@ -20,8 +20,8 @@ export default function Quota() {
 
   const loadQuota = useCallback(async () => {
     const q = await api.quotaCurrent();
-    // scrape_error 是采集失败占位行（错误信息存在 reset_at），不是指标，不进图表
-    const rows = q.rows.filter((r) => r.metric !== "scrape_error");
+    // scrape_error/scrape_warn 是采集失败占位行（错误信息存在 reset_at），不是指标，不进图表
+    const rows = q.rows.filter((r) => r.metric !== "scrape_error" && r.metric !== "scrape_warn");
     setQuota({ rows });
     setSelected((prev) => {
       if (prev) return prev;

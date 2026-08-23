@@ -182,10 +182,16 @@ function KeyRow({
       <div className="flex items-center gap-2">
         {err ? (
           <span className="flex items-center gap-1.5">
-            <span className="rounded-full bg-red-500/10 px-2.5 py-1 text-xs text-red-600 dark:text-red-400" title={err}>
-              最近采集失败
-            </span>
-            <CopyableError err={err} />
+            {err.partial ? (
+              <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs text-amber-600 dark:text-amber-400" title={err.message}>
+                部分采集失败
+              </span>
+            ) : (
+              <span className="rounded-full bg-red-500/10 px-2.5 py-1 text-xs text-red-600 dark:text-red-400" title={err.message}>
+                最近采集失败
+              </span>
+            )}
+            <CopyableError err={err.message} tone={err.partial ? "amber" : "red"} />
           </span>
         ) : (
           <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400">采集正常</span>

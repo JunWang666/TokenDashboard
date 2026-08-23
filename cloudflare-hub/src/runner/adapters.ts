@@ -19,7 +19,8 @@ export const adapters: Record<string, QuotaAdapter> = {
   kimi,
 };
 
-/** 运行单个适配器；任何失败都转为 scrape_error 快照行（web 端显示采集失败而不是空白） */
+/** 运行单个适配器；整体失败转为 scrape_error 行（web 端整卡报红）。
+ *  部分指标失败时适配器应返回成功行 + scrape_warn 行（web 端显示数据并带警告），而不是抛错。 */
 export async function runAdapter(provider: string, cred: unknown, f: FetchFn): Promise<QuotaRow[]> {
   const adapter = adapters[provider];
   if (!adapter) return [];

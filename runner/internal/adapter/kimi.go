@@ -125,12 +125,19 @@ func (kimiAdapter) Fetch(cred map[string]string) ([]Row, error) {
 		return nil, fmt.Errorf("kimi: no usage/limits in response")
 	}
 
-	// 月额度（可选，需要网页登录态 token）
+	// 月额度是可选采集项：失败不应拖垮整卡，追加 scrape_warn 行（web 端显示部分失败警告）
 	monthly, err := fetchKimiMonthly(cred)
 	if err != nil {
-		return nil, err
+		rows = append(rows, Row{
+			Provider: "kimi",
+			Metric:   "scrape_warn",
+			Value:    1,
+			Unit:     strptr("error"),
+			ResetAt:  strptr(truncate("月额度采集失败: "+err.Error(), 500)),
+		})
+	} else {
+		rows = append(rows, monthly...)
 	}
-	rows = append(rows, monthly...)
 	return rows, nil
 }
 

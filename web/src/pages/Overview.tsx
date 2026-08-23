@@ -57,22 +57,35 @@ export default function Overview({ onAuthError }: { onAuthError: (msg: string) =
                           <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{p.name}</span>
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">{account}</span>
                         </div>
-                        {err ? (
+                        {err && !err.partial ? (
                           <div className="text-sm text-red-600 dark:text-red-400">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-medium">采集失败</span>
-                              <CopyableError err={err} />
+                              <CopyableError err={err.message} />
                             </div>
-                            <div className="mt-1 break-all text-xs text-red-500/80 dark:text-red-400/70">{err}</div>
-                          </div>
-                        ) : qs.length ? (
-                          <div className="space-y-3">
-                            {qs.map((q) => (
-                              <QuotaBar key={q.label} q={q} />
-                            ))}
+                            <div className="mt-1 break-all text-xs text-red-500/80 dark:text-red-400/70">{err.message}</div>
                           </div>
                         ) : (
-                          <div className="text-sm text-slate-400 dark:text-slate-600">暂无数据（未配置凭证或尚未采集）</div>
+                          <>
+                            {qs.length ? (
+                              <div className="space-y-3">
+                                {qs.map((q) => (
+                                  <QuotaBar key={q.label} q={q} />
+                                ))}
+                              </div>
+                            ) : !err ? (
+                              <div className="text-sm text-slate-400 dark:text-slate-600">暂无数据（未配置凭证或尚未采集）</div>
+                            ) : null}
+                            {err?.partial && (
+                              <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-amber-700 dark:text-amber-400">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-medium">部分指标采集失败</span>
+                                  <CopyableError err={err.message} tone="amber" />
+                                </div>
+                                <div className="mt-1 break-all text-xs text-amber-600/80 dark:text-amber-400/70">{err.message}</div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     );

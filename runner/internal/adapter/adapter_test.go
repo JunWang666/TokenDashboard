@@ -170,6 +170,40 @@ func TestKimiMonthlyViaWebToken(t *testing.T) {
 	}
 }
 
+func TestKimiMonthlyFailureDegradesToWarn(t *testing.T) {
+	// 月额度接口失败不应拖垮整卡：周额度行保留，追加 scrape_warn 行（不返回 error）
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/usages") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"usage": map[string]any{"limit": "100", "remaining": "80"},
+			})
+			return
+		}
+		w.WriteHeader(401)
+		_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+	}))
+	defer srv.Close()
+
+	old := KimiUsageURL
+	KimiUsageURL = srv.URL + "/usages"
+	defer func() { KimiUsageURL = old }()
+
+	rows, err := kimiAdapter{}.Fetch(map[string]string{
+		"api_key": "sk-kimi-test", "web_token": "expired", "stats_base_url": srv.URL,
+	})
+	if err != nil {
+		t.Fatalf("月额度失败不应返回 error: %v", err)
+	}
+	if w := findRow(rows, "weekly_used_pct"); w == nil || w.Value != 20 {
+		t.Fatalf("weekly_used_pct = %+v, want 20", w)
+	}
+	warn := findRow(rows, "scrape_warn")
+	if warn == nil || warn.ResetAt == nil || !strings.Contains(*warn.ResetAt, "月额度采集失败") || !strings.Contains(*warn.ResetAt, "HTTP 401") {
+		t.Fatalf("scrape_warn 行缺失或信息不全: %+v", warn)
+	}
+}
+
 func TestCodexWindowsClassifiedByDuration(t *testing.T) {
 	reset5h := 1786536977.0
 	resetWeek := 1787049600.0
