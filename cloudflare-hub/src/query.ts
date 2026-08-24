@@ -169,14 +169,17 @@ export async function quotaHistory(c: Context<{ Bindings: Env }>): Promise<Respo
 export async function bootstrap(c: Context<{ Bindings: Env }>): Promise<Response> {
   const env = c.env;
   const today = new Date().toISOString().slice(0, 10);
-  const from = `${today}T00`;
+  const from = c.req.query("from") ?? `${today}T00`;
+  const to = c.req.query("to") ?? null;
+  const usageRange = to ? "WHERE bucket_hour >= ? AND bucket_hour < ?" : "WHERE bucket_hour >= ?";
+  const usageArgs = to ? [from, to] : [from];
 
   const [tsRes, quotaRes] = await env.DB.batch([
     env.DB.prepare(
       `SELECT bucket_hour AS time, provider AS series, ${TOKEN_COLS}
-       FROM usage_hourly WHERE bucket_hour >= ?
+       FROM usage_hourly ${usageRange}
        GROUP BY bucket_hour, provider ORDER BY time`,
-    ).bind(from),
+    ).bind(...usageArgs),
     env.DB.prepare(
       `SELECT q.* FROM quota_snapshots q
        INNER JOIN (
@@ -192,7 +195,7 @@ export async function bootstrap(c: Context<{ Bindings: Env }>): Promise<Response
       interval: "hour",
       group_by: "provider",
       from,
-      to: null,
+      to,
       rows: ((tsRes.results ?? []) as Record<string, unknown>[]).map((r) => ({
         time: r.time as string,
         series: r.series as string,

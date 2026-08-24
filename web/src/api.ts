@@ -48,7 +48,7 @@ const q = (params: Record<string, string | undefined>) => {
 };
 
 export const api = {
-  bootstrap: () => req<BootstrapResponse>(`/api/v1/bootstrap`),
+  bootstrap: (params?: { from?: string; to?: string }) => req<BootstrapResponse>(`/api/v1/bootstrap${q(params ?? {})}`),
   summary: (from?: string, to?: string, groupBy?: string) =>
     req<SummaryResponse>(`/api/v1/summary${q({ from, to, group_by: groupBy })}`),
   timeseries: (params: { from?: string; to?: string; interval?: string; groupBy?: string }) =>
@@ -62,6 +62,8 @@ export const api = {
   credentials: () => req<CredentialsResponse>(`/api/v1/credentials`),
   putCredential: (provider: string, payload: unknown, name?: string) =>
     req(`/api/v1/credentials/${provider}`, { method: "PUT", body: JSON.stringify({ payload, name }) }),
+  patchCredential: (provider: string, payload: Record<string, string>, name?: string) =>
+    req(`/api/v1/credentials/${provider}`, { method: "PATCH", body: JSON.stringify({ payload, name }) }),
   deleteCredential: (provider: string, name?: string) =>
     req(`/api/v1/credentials/${provider}${q({ name })}`, { method: "DELETE" }),
   collect: () =>

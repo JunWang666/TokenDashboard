@@ -94,6 +94,12 @@ const put = (path, body, init) =>
     body: JSON.stringify(body),
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
+const patch = (path, body, init) =>
+  get(path, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
 
 test("healthz open", async () => {
   const res = await get("/healthz");
@@ -149,6 +155,18 @@ test("timeseries hour/day", async () => {
   assert.equal(json.rows.length, 2);
   const day = await (await get("/api/v1/usage/timeseries?interval=day&group_by=model", user)).json();
   assert.equal(day.rows.find((r) => r.series === "claude-sonnet-4-5").requests, 14);
+});
+
+test("bootstrap accepts a caller-provided UTC range", async () => {
+  const res = await get(
+    "/api/v1/bootstrap?from=2026-08-12T00:00:00Z&to=2026-08-12T23:00:00Z",
+    user,
+  );
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.ts.from, "2026-08-12T00:00:00Z");
+  assert.equal(json.ts.to, "2026-08-12T23:00:00Z");
+  assert.equal(json.ts.rows.length, 2);
 });
 
 test("quota ingest (runner) + current/history (user)", async () => {
@@ -266,6 +284,45 @@ test("credentials: 多 key —— 同服务商存两把，独立列出/删除", 
   assert.equal(bals.find((r) => r.account === "主账号")?.value, 50);
   // 「备用」的凭证已删，其快照不再出现在 current
   assert.equal(bals.find((r) => r.account === "备用"), undefined);
+});
+
+test("credentials: PATCH 只更新提交字段，其余凭证字段保持不变", async () => {
+  await put(
+    "/api/v1/credentials/kimi",
+    {
+      name: "组合凭证",
+      payload: { api_key: "sk-kimi-original", web_token: "web-old", base_url: "https://relay.example.com/kimi" },
+    },
+    user,
+  );
+
+  const res = await patch(
+    "/api/v1/credentials/kimi",
+    { name: "组合凭证", payload: { web_token: "web-new" } },
+    client,
+  );
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).updated_by, "client:dev-client");
+
+  const external = await (await get("/api/v1/internal/credentials", runner)).json();
+  const credential = external.kimi.find((item) => item.name === "组合凭证");
+  assert.deepEqual(credential, {
+    name: "组合凭证",
+    api_key: "sk-kimi-original",
+    web_token: "web-new",
+    base_url: "https://relay.example.com/kimi",
+  });
+
+  assert.equal(
+    (await patch("/api/v1/credentials/kimi", { name: "不存在", payload: { web_token: "x" } }, user)).status,
+    404,
+  );
+  assert.equal(
+    (await patch("/api/v1/credentials/kimi", { name: "组合凭证", payload: {} }, user)).status,
+    400,
+  );
+
+  await get("/api/v1/credentials/kimi?name=组合凭证", { method: "DELETE", headers: user.headers });
 });
 
 test("新增套餐服务商: minimax / zai 凭证与额度均可入库", async () => {

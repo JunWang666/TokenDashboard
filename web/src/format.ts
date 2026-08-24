@@ -54,8 +54,23 @@ export function fmtNumber(n: number): string {
   return new Intl.NumberFormat("zh-CN").format(n);
 }
 
+/**
+ * Hub stores SQLite datetime('now') values as UTC without a timezone suffix,
+ * while ISO values from adapters include Z/offsets. Normalize both forms
+ * before letting the browser render them in the user's local timezone.
+ */
+export function parseUtcDate(value: string): Date {
+  const raw = value.trim();
+  if (!raw) return new Date(Number.NaN);
+  const normalized = raw.replace(" ", "T");
+  if (/Z$|[+-]\d{2}:?\d{2}$/i.test(normalized) || /^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return new Date(normalized);
+  }
+  return new Date(`${normalized}Z`);
+}
+
 export function fmtTime(iso: string): string {
-  const d = new Date(iso);
+  const d = parseUtcDate(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("zh-CN", { hour12: false });
 }
 
@@ -141,13 +156,27 @@ export function fmtQuotaValue(value: number, unit?: string | null, metric?: stri
 }
 
 export function fmtShortTime(iso: string): string {
-  const d = new Date(iso);
+  const d = parseUtcDate(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
+/** 本地日期 key，供 UTC 小时桶在浏览器中按用户时区重新分组。 */
+export function localDateKey(iso: string): string {
+  const d = parseUtcDate(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+export function localDayLabel(iso: string): string {
+  const d = parseUtcDate(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 export function timeAgo(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
+  const ms = Date.now() - parseUtcDate(iso).getTime();
   if (ms < 0) return "刚刚";
   const min = Math.floor(ms / 60000);
   if (min < 1) return "刚刚";
@@ -159,7 +188,7 @@ export function timeAgo(iso: string): string {
 
 export function resetCountdown(resetAt: string | null): string {
   if (!resetAt) return "";
-  const ms = new Date(resetAt).getTime() - Date.now();
+  const ms = parseUtcDate(resetAt).getTime() - Date.now();
   if (ms <= 0) return "即将重置";
   const d = Math.floor(ms / 86400000);
   const h = Math.floor((ms % 86400000) / 3600000);
@@ -170,4 +199,13 @@ export function todayUtcBounds(): { from: string; to: string } {
   const now = new Date();
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   return { from: from.toISOString(), to: new Date(Date.now() + 86400000).toISOString().slice(0, 10) + "T00:00:00Z" };
+}
+
+/** 当前用户本地自然日对应的 UTC 查询范围。 */
+export function todayLocalUtcBounds(): { from: string; to: string } {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const withoutMilliseconds = (d: Date) => d.toISOString().replace(".000Z", "Z");
+  return { from: withoutMilliseconds(from), to: withoutMilliseconds(to) };
 }

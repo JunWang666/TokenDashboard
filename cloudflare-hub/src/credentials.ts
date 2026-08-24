@@ -7,6 +7,16 @@ function bad(c: Context, msg: string): Response {
   return c.json({ error: "bad_request", detail: msg }, 400);
 }
 
+function credentialName(name: unknown): string {
+  return typeof name === "string" && name.trim() ? name.trim().slice(0, 50) : "默认";
+}
+
+function updatedBy(c: Context): string {
+  const p = c.get("principal");
+  const device = c.req.header("x-client-device");
+  return p.type === "service" ? `client:${p.name}` : device ? `client:${device}` : `web:${p.name}`;
+}
+
 /** GET /credentials —— 列表（不含明文），每个服务商可有多把 key */
 export async function list(c: Context<{ Bindings: Env }>): Promise<Response> {
   const env = c.env;
@@ -26,17 +36,14 @@ export async function put(c: Context<{ Bindings: Env }>): Promise<Response> {
   const body = (await c.req.json().catch(() => null)) as { payload?: unknown; name?: unknown } | null;
   const payload = body?.payload;
   if (payload == null) return bad(c, "payload required (object or string)");
-  const name =
-    typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, 50) : "默认";
+  const name = credentialName(body?.name);
 
   // 统一存成 JSON 对象，runner 侧拿到的一定是可解析的 Record<string,string>
   const plaintext = typeof payload === "string" ? JSON.stringify({ value: payload }) : JSON.stringify(payload);
   const payloadEnc = await encryptCredential(env.CREDENTIALS_KEY, plaintext);
   const hint = credentialHint(payload);
 
-  const p = c.get("principal");
-  const device = c.req.header("x-client-device");
-  const updatedBy = p.type === "service" ? `client:${p.name}` : device ? `client:${device}` : `web:${p.name}`;
+  const updater = updatedBy(c);
 
   await env.DB.prepare(
     `INSERT INTO credentials (provider, name, payload_enc, hint, updated_at, updated_by)
@@ -47,10 +54,68 @@ export async function put(c: Context<{ Bindings: Env }>): Promise<Response> {
        updated_at = datetime('now'),
        updated_by = excluded.updated_by`,
   )
-    .bind(provider, name, payloadEnc, hint, updatedBy)
+    .bind(provider, name, payloadEnc, hint, updater)
     .run();
 
-  return c.json({ ok: true, provider, name, hint, updated_by: updatedBy });
+  return c.json({ ok: true, provider, name, hint, updated_by: updater });
+}
+
+/** PATCH /credentials/:provider —— 局部更新已有凭证；body { name?, payload: { fields... } }。
+ *
+ * 未提交的字段保持不变。密文无法在 SQL 内原子合并，因此用旧密文作乐观锁；发生并发更新时
+ * 重新读取、解密、合并，避免两个局部更新互相覆盖。 */
+export async function patch(c: Context<{ Bindings: Env }>): Promise<Response> {
+  const env = c.env;
+  const provider = c.req.param("provider") ?? "";
+  if (!PROVIDER_SET.has(provider)) return bad(c, `unknown provider: ${provider}`);
+  if (!env.CREDENTIALS_KEY) return c.json({ error: "server_misconfigured", detail: "CREDENTIALS_KEY not set" }, 500);
+
+  const body = (await c.req.json().catch(() => null)) as { payload?: unknown; name?: unknown } | null;
+  if (!body?.payload || typeof body.payload !== "object" || Array.isArray(body.payload)) {
+    return bad(c, "payload required (non-empty object)");
+  }
+  const changes = Object.entries(body.payload as Record<string, unknown>);
+  if (changes.length === 0) return bad(c, "payload required (non-empty object)");
+
+  const name = credentialName(body.name);
+  const updater = updatedBy(c);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const existing = await env.DB.prepare(
+      `SELECT payload_enc FROM credentials WHERE provider = ? AND name = ?`,
+    )
+      .bind(provider, name)
+      .first<{ payload_enc: string }>();
+    if (!existing) return c.json({ error: "not_found", detail: `credential not found: ${provider}/${name}` }, 404);
+
+    let current: unknown;
+    try {
+      current = JSON.parse(await decryptCredential(env.CREDENTIALS_KEY, existing.payload_enc));
+    } catch {
+      return c.json({ error: "credential_unreadable", detail: "stored credential cannot be decrypted" }, 500);
+    }
+    if (!current || typeof current !== "object" || Array.isArray(current)) {
+      return c.json({ error: "credential_unreadable", detail: "stored credential is not an object" }, 500);
+    }
+
+    const merged = Object.fromEntries([
+      ...Object.entries(current as Record<string, unknown>),
+      ...changes,
+    ]);
+    const payloadEnc = await encryptCredential(env.CREDENTIALS_KEY, JSON.stringify(merged));
+    const hint = credentialHint(merged);
+    const result = await env.DB.prepare(
+      `UPDATE credentials
+       SET payload_enc = ?, hint = ?, updated_at = datetime('now'), updated_by = ?
+       WHERE provider = ? AND name = ? AND payload_enc = ?`,
+    )
+      .bind(payloadEnc, hint, updater, provider, name, existing.payload_enc)
+      .run();
+    if (result.meta.changes === 1) {
+      return c.json({ ok: true, provider, name, hint, updated_by: updater });
+    }
+  }
+
+  return c.json({ error: "conflict", detail: "credential changed concurrently; retry the request" }, 409);
 }
 
 /** DELETE /credentials/:provider[?name=] —— 仅用户身份；带 name 删单把，否则删该服务商全部 */

@@ -19,6 +19,7 @@ import {
   isPercentMetric,
   metricColor,
   metricLabel,
+  parseUtcDate,
   providerMeta,
 } from "../format";
 import { chartPalette, useTheme } from "../theme";
@@ -120,7 +121,7 @@ function KeyChart({ group, allCurrent }: { group: KeyGroup; allCurrent: QuotaCur
   const data = useMemo(() => {
     const byTime = new Map<string, Record<string, number | string>>();
     for (const r of group.history) {
-      const d = new Date(r.captured_at);
+      const d = parseUtcDate(r.captured_at);
       if (Number.isNaN(d.getTime())) continue;
       d.setSeconds(0, 0);
       d.setMilliseconds(0);

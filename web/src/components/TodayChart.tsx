@@ -8,7 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { PROVIDERS, fmtTokens, providerColor } from "../format";
+import { PROVIDERS, fmtTokens, parseUtcDate, providerColor } from "../format";
 import { chartPalette, useTheme } from "../theme";
 import type { TimeseriesResponse } from "../types";
 
@@ -26,7 +26,9 @@ export default function TodayChart({ ts }: { ts: TimeseriesResponse }) {
   const data = useMemo(() => {
     const byHour = new Map<string, Record<string, number>>();
     for (const r of ts.rows) {
-      const hour = `${String(new Date(r.time).getHours()).padStart(2, "0")}时`;
+      const d = parseUtcDate(r.time);
+      if (Number.isNaN(d.getTime())) continue;
+      const hour = `${String(d.getHours()).padStart(2, "0")}时`;
       const row = byHour.get(hour) ?? {};
       row[r.series] = (row[r.series] ?? 0) + r.input_tokens + r.output_tokens;
       byHour.set(hour, row);

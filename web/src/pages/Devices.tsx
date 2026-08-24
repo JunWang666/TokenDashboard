@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { api } from "../api";
 import AsyncData from "../components/AsyncData";
-import { timeAgo } from "../format";
+import { parseUtcDate, timeAgo } from "../format";
 import type { DevicesResponse } from "../types";
 
 export default function Devices() {
@@ -33,7 +33,7 @@ export default function Devices() {
                 </thead>
                 <tbody>
                   {data.rows.map((d) => {
-                    const ageMs = Date.now() - new Date(d.last_seen_at).getTime();
+                    const ageMs = Date.now() - parseUtcDate(d.last_seen_at).getTime();
                     const stale = ageMs > 24 * 3600 * 1000;
                     const warn = ageMs > 10 * 60 * 1000;
                     return (

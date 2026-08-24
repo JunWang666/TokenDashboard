@@ -59,6 +59,7 @@ api.get("/devices", requireRole("user", "client"), query.devices);
 
 api.get("/credentials", requireRole("user", "client"), credentials.list);
 api.put("/credentials/:provider", requireRole("user", "client"), credentials.put);
+api.patch("/credentials/:provider", requireRole("user", "client"), credentials.patch);
 api.delete("/credentials/:provider", requireRole("user"), credentials.del);
 api.get("/internal/credentials", requireRole("runner"), credentials.internalList);
 

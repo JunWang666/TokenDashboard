@@ -261,6 +261,7 @@ function KeyRow({
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const err = scrapeError(provider, quotaRows, cred.name);
 
@@ -278,40 +279,158 @@ function KeyRow({
   };
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/50">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">{cred.name}</span>
-        <span className="font-mono text-xs text-slate-500">{cred.hint ?? "—"}</span>
-        <span className="text-xs text-slate-400 dark:text-slate-600">
-          {fmtTime(cred.updated_at)} · {cred.updated_by ?? "—"}
-        </span>
-        {msg && <span className="text-xs text-slate-500">{msg}</span>}
-      </div>
-      <div className="flex items-center gap-2">
-        {err ? (
-          <span className="flex items-center gap-1.5">
-            {err.partial ? (
-              <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs text-amber-600 dark:text-amber-400" title={err.message}>
-                部分采集失败
-              </span>
-            ) : (
-              <span className="rounded-full bg-red-500/10 px-2.5 py-1 text-xs text-red-600 dark:text-red-400" title={err.message}>
-                最近采集失败
-              </span>
-            )}
-            <CopyableError err={err.message} tone={err.partial ? "amber" : "red"} />
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/50">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">{cred.name}</span>
+          <span className="font-mono text-xs text-slate-500">{cred.hint ?? "—"}</span>
+          <span className="text-xs text-slate-400 dark:text-slate-600">
+            {fmtTime(cred.updated_at)} · {cred.updated_by ?? "—"}
           </span>
-        ) : (
-          <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400">采集正常</span>
-        )}
-        <button
-          onClick={remove}
-          disabled={busy}
-          className="rounded-lg border border-red-500/40 px-2.5 py-1 text-xs text-red-500 transition-colors hover:bg-red-500/10 dark:text-red-400 disabled:opacity-40"
-        >
-          删除
-        </button>
+          {msg && <span className="text-xs text-emerald-600 dark:text-emerald-400">{msg}</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          {err ? (
+            <span className="flex items-center gap-1.5">
+              {err.partial ? (
+                <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs text-amber-600 dark:text-amber-400" title={err.message}>
+                  部分采集失败
+                </span>
+              ) : (
+                <span className="rounded-full bg-red-500/10 px-2.5 py-1 text-xs text-red-600 dark:text-red-400" title={err.message}>
+                  最近采集失败
+                </span>
+              )}
+              <CopyableError err={err.message} tone={err.partial ? "amber" : "red"} />
+            </span>
+          ) : (
+            <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-600 dark:text-emerald-400">采集正常</span>
+          )}
+          <button
+            onClick={() => {
+              setEditing((v) => !v);
+              setMsg(null);
+            }}
+            disabled={busy}
+            className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 disabled:opacity-40"
+          >
+            {editing ? "收起" : "更新"}
+          </button>
+          <button
+            onClick={remove}
+            disabled={busy}
+            className="rounded-lg border border-red-500/40 px-2.5 py-1 text-xs text-red-500 transition-colors hover:bg-red-500/10 dark:text-red-400 disabled:opacity-40"
+          >
+            删除
+          </button>
+        </div>
       </div>
+      {editing && (
+        <EditKeyForm
+          provider={provider}
+          name={cred.name}
+          onDone={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            setMsg("已局部更新");
+            onChanged();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditKeyForm({
+  provider,
+  name,
+  onDone,
+  onSaved,
+}: {
+  provider: string;
+  name: string;
+  onDone: () => void;
+  onSaved: () => void;
+}) {
+  const meta = CRED_FIELDS[provider];
+  const [secret, setSecret] = useState("");
+  const [extraVal, setExtraVal] = useState("");
+  const [show, setShow] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    const payload: Record<string, string> = {};
+    if (secret.trim()) payload[meta.field] = secret.trim();
+    if (meta.extra && extraVal.trim()) payload[meta.extra.field] = extraVal.trim();
+    if (Object.keys(payload).length === 0) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patchCredential(provider, payload, name);
+      onSaved();
+    } catch (e) {
+      setError(String(e));
+      setSaving(false);
+    }
+  };
+
+  const hasChanges = Boolean(secret.trim() || (meta.extra && extraVal.trim()));
+  const inputCls =
+    "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300";
+
+  return (
+    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+      <div className={`grid gap-3 ${meta.extra ? "sm:grid-cols-2" : ""}`}>
+        <div>
+          <label className="text-xs text-slate-500">{meta.label}</label>
+          <input
+            type={show ? "text" : "password"}
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            placeholder="留空保持不变"
+            autoComplete="off"
+            className={`mt-1 ${inputCls} font-mono`}
+          />
+        </div>
+        {meta.extra && (
+          <div>
+            <label className="text-xs text-slate-500">{meta.extra.label}</label>
+            <input
+              type={show ? "text" : "password"}
+              value={extraVal}
+              onChange={(e) => setExtraVal(e.target.value)}
+              placeholder="留空保持不变"
+              autoComplete="off"
+              className={`mt-1 ${inputCls} font-mono`}
+            />
+          </div>
+        )}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          onClick={save}
+          disabled={!hasChanges || saving}
+          className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-slate-950 transition-colors hover:bg-emerald-400 disabled:opacity-40"
+        >
+          {saving ? "更新中…" : "更新已填写字段"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShow((v) => !v)}
+          className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+        >
+          {show ? "隐藏输入" : "显示输入"}
+        </button>
+        <button onClick={onDone} className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+          取消
+        </button>
+        {error && <span className="text-xs text-red-500">{error}</span>}
+      </div>
+      <p className="mt-2 text-xs text-slate-400 dark:text-slate-600">
+        只会覆盖已填写字段；其他凭证字段（包括自定义 JSON 字段）保持不变。
+      </p>
     </div>
   );
 }
@@ -413,7 +532,7 @@ function AddKeyForm({ provider, onDone, onChanged }: { provider: string; onDone:
         {msg && <span className={`text-xs ${msg.ok ? "text-emerald-500" : "text-red-500"}`}>{msg.text}</span>}
       </div>
       <p className="text-xs leading-relaxed text-slate-400 dark:text-slate-600">
-        同名 key 会覆盖更新。{meta.hint ?? ""}
+        同名 key 会整组覆盖；已有凭证只改部分字段请使用上方“更新”。{meta.hint ?? ""}
       </p>
     </div>
   );

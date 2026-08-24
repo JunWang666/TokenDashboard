@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { api, AuthError } from "../api";
 import AsyncData from "../components/AsyncData";
 import QuotaBar, { quotaDisplay, scrapeError, CopyableError } from "../components/QuotaBar";
-import { PROVIDERS, fmtTokens, fmtUsd } from "../format";
+import { PROVIDERS, fmtTokens, fmtUsd, todayLocalUtcBounds } from "../format";
 import type { BootstrapResponse, TimeseriesResponse } from "../types";
 
 // 图表库单独分包，不进首屏主 bundle
@@ -11,7 +11,7 @@ const TodayChart = lazy(() => import("../components/TodayChart"));
 export default function Overview({ onAuthError }: { onAuthError: (msg: string) => void }) {
   // tick 变化 → load 引用变化 → AsyncData 重新拉取
   const [tick, setTick] = useState(0);
-  const load = useCallback(() => api.bootstrap(), [tick]);
+  const load = useCallback(() => api.bootstrap(todayLocalUtcBounds()), [tick]);
 
   return (
     <div className="space-y-6">

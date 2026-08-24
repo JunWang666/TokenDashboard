@@ -67,11 +67,13 @@ npx wrangler secret put CREDENTIALS_KEY  # 然后更新 secret 为新密钥
 | POST | `/api/v1/ingest/quota` | runner | 批量写入 quota_snapshots |
 | GET | `/api/v1/summary?from=&to=&group_by=provider/model/day` | user / client | 用量汇总 |
 | GET | `/api/v1/usage/timeseries?from=&to=&interval=hour/day&group_by=` | user / client | 时间序列 |
+| GET | `/api/v1/bootstrap?from=&to=` | user / client | 总览首屏（可传 UTC 时间范围） |
 | GET | `/api/v1/quota/current` | user / client | 各 (provider, metric) 最新快照 |
 | GET | `/api/v1/quota/history?provider=&metric=&from=&to=` | user / client | 额度历史 |
 | GET | `/api/v1/devices` | user / client | 设备心跳 |
 | GET | `/api/v1/credentials` | user / client | 凭证列表（仅 hint） |
-| PUT | `/api/v1/credentials/:provider` | user / client | 写入凭证（加密存储） |
+| PUT | `/api/v1/credentials/:provider` | user / client | 写入/整组替换凭证（加密存储） |
+| PATCH | `/api/v1/credentials/:provider` | user / client | 局部更新已有凭证（只覆盖 `payload` 中提交的字段） |
 | DELETE | `/api/v1/credentials/:provider` | user | 删除凭证 |
 | GET | `/api/v1/internal/credentials` | runner | 全部凭证明文（仅 runner token） |
 | GET | `/healthz` | 公开 | 健康检查 |

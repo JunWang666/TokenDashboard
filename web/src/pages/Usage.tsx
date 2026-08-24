@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { api } from "../api";
 import AsyncData from "../components/AsyncData";
-import { PROVIDERS, fmtTokens, fmtUsd, providerColor } from "../format";
+import { fmtTokens, fmtUsd, localDateKey, localDayLabel, parseUtcDate, providerColor } from "../format";
 import { chartPalette, useTheme } from "../theme";
 import type { TimeseriesResponse } from "../types";
 
@@ -19,10 +19,11 @@ const SELECT_CLS =
   "rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-slate-700 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300";
 
 const hourToLocal = (iso: string) => {
-  const d = new Date(iso);
+  const d = parseUtcDate(iso);
+  if (Number.isNaN(d.getTime())) return iso;
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}时`;
 };
-const dayToLocal = (iso: string) => iso.slice(5).replace("-", "/");
+const dayToLocal = (iso: string) => localDayLabel(iso);
 
 export default function Usage() {
   const [interval, setInterval] = useState<"hour" | "day">("day");
@@ -37,7 +38,8 @@ export default function Usage() {
   }, [days]);
 
   const load = useCallback(
-    () => api.timeseries({ from: bounds.from, to: bounds.to, interval, groupBy }),
+    // 日视图需要从 UTC 小时桶重新按本地日期分组，否则服务端按 UTC 日期聚合后无法修正跨日边界。
+    () => api.timeseries({ from: bounds.from, to: bounds.to, interval: interval === "day" ? "hour" : interval, groupBy }),
     [bounds, interval, groupBy],
   );
 
@@ -98,15 +100,17 @@ function Chart({ ts, metric, interval, groupBy }: { ts: TimeseriesResponse; metr
   const seriesNames = useMemo(() => [...new Set(ts.rows.map((r) => r.series))], [ts]);
 
   const data = useMemo(() => {
-    const byTime = new Map<string, Record<string, number>>();
+    const byTime = new Map<string, { label: string; series: Record<string, number> }>();
     for (const r of ts.rows) {
       const label = interval === "day" ? dayToLocal(r.time) : hourToLocal(r.time);
-      const row = byTime.get(label) ?? {};
+      const key = interval === "day" ? localDateKey(r.time) : r.time;
+      if (!key) continue;
+      const row = byTime.get(key) ?? { label, series: {} };
       const v = metric === "cost" ? r.cost_usd : r.input_tokens + r.output_tokens;
-      row[r.series] = (row[r.series] ?? 0) + v;
-      byTime.set(label, row);
+      row.series[r.series] = (row.series[r.series] ?? 0) + v;
+      byTime.set(key, row);
     }
-    return [...byTime.entries()].map(([label, series]) => ({ label, ...series }));
+    return [...byTime.values()].map(({ label, series }) => ({ label, ...series }));
   }, [ts, interval, metric]);
 
   const totals = useMemo(() => {
