@@ -325,21 +325,24 @@ test("credentials: PATCH 只更新提交字段，其余凭证字段保持不变"
   await get("/api/v1/credentials/kimi?name=组合凭证", { method: "DELETE", headers: user.headers });
 });
 
-test("新增套餐服务商: minimax / zai 凭证与额度均可入库", async () => {
+test("新增套餐服务商: minimax / zai / anyrouter 凭证与额度均可入库", async () => {
   await put("/api/v1/credentials/minimax", { payload: { api_key: "sk-cp-minimax" } }, user);
   await put("/api/v1/credentials/zai", { payload: { api_key: "zai-plan-key" } }, user);
+  await put("/api/v1/credentials/anyrouter", { payload: { api_key: "sk-ar-v1-key" } }, user);
 
   const internal = await (
     await get("/api/v1/internal/credentials", { headers: { "X-Tokendash-Internal": KEY_B64 } })
   ).json();
   assert.equal(internal.minimax[0].api_key, "sk-cp-minimax");
   assert.equal(internal.zai[0].api_key, "zai-plan-key");
+  assert.equal(internal.anyrouter[0].api_key, "sk-ar-v1-key");
 
   const result = await post(
     "/api/v1/ingest/quota",
     { rows: [
       { provider: "minimax", metric: "weekly_used_pct", account: "默认", value: 35, unit: "percent" },
       { provider: "zai", metric: "session_used_pct", account: "默认", value: 42, unit: "percent" },
+      { provider: "anyrouter", metric: "balance_usd", account: "默认", value: 9.73, unit: "usd" },
     ] },
     runner,
   );
@@ -347,7 +350,9 @@ test("新增套餐服务商: minimax / zai 凭证与额度均可入库", async (
   const current = await (await get("/api/v1/quota/current", user)).json();
   assert.equal(current.rows.find((r) => r.provider === "minimax").value, 35);
   assert.equal(current.rows.find((r) => r.provider === "zai").value, 42);
+  assert.equal(current.rows.find((r) => r.provider === "anyrouter").value, 9.73);
 
   await get("/api/v1/credentials/minimax", { method: "DELETE", headers: user.headers });
   await get("/api/v1/credentials/zai", { method: "DELETE", headers: user.headers });
+  await get("/api/v1/credentials/anyrouter", { method: "DELETE", headers: user.headers });
 });

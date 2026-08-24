@@ -113,7 +113,7 @@ location /backend-api/ { proxy_pass https://chatgpt.com/backend-api/; proxy_ssl_
 {"api_key": "sk-kimi-xxx", "base_url": "https://relay.example.com/kimi"}
 ```
 
-其余 provider（openai/deepseek/glm/copilot/claude/cursor）由 Cloudflare 内置 runner 采集；
+其余 provider（openai/deepseek/glm/anyrouter/copilot/claude/cursor）由 Cloudflare 内置 runner 采集；
 如需迁移过来，在 `internal/adapter/` 里按同样模式加一个文件即可。
 
 ## 测试

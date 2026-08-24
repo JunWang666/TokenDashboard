@@ -9,6 +9,7 @@ import { codex } from "./adapters/codex";
 import { kimi } from "./adapters/kimi";
 import { minimax } from "./adapters/minimax";
 import { zai } from "./adapters/zai";
+import { anyrouter } from "./adapters/anyrouter";
 
 export const adapters: Record<string, QuotaAdapter> = {
   openai,
@@ -21,6 +22,7 @@ export const adapters: Record<string, QuotaAdapter> = {
   kimi,
   minimax,
   zai,
+  anyrouter,
 };
 
 /** 运行单个适配器；整体失败转为 scrape_error 行（web 端整卡报红）。

@@ -48,6 +48,12 @@ const CRED_FIELDS: Record<
     placeholder: "填写套餐专属 API Key",
     hint: "默认查询 api.z.ai；智谱国内 Coding Plan 可由客户端推送 JSON：{\"api_key\":\"...\",\"region\":\"cn\"}",
   },
+  anyrouter: {
+    field: "api_key",
+    label: "AnyRouter API Key",
+    placeholder: "sk-ar-v1-...",
+    hint: "需要启用 key 的 Management 权限以访问 /api/v1/credits；如需自建转发，可由客户端推送 JSON：{\"api_key\":\"...\",\"base_url\":\"https://你的转发/api/v1\"}",
+  },
   cursor: {
     field: "session",
     label: "Cursor cookie 串",
@@ -285,7 +291,7 @@ function KeyRow({
           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">{cred.name}</span>
           <span className="font-mono text-xs text-slate-500">{cred.hint ?? "—"}</span>
           <span className="text-xs text-slate-400 dark:text-slate-600">
-            {fmtTime(cred.updated_at)} · {cred.updated_by ?? "—"}
+            {fmtTime(cred.updated_at)}
           </span>
           {msg && <span className="text-xs text-emerald-600 dark:text-emerald-400">{msg}</span>}
         </div>

@@ -10,6 +10,7 @@ let codex;
 let cursor;
 let minimax;
 let zai;
+let anyrouter;
 let runAdapter;
 
 before(async () => {
@@ -22,7 +23,7 @@ before(async () => {
     platform: "browser",
     logLevel: "silent",
   });
-  ({ kimi, codex, cursor, minimax, zai } = await import("../dist/adapters.mjs").then((m) => m.adapters));
+  ({ kimi, codex, cursor, minimax, zai, anyrouter } = await import("../dist/adapters.mjs").then((m) => m.adapters));
   ({ runAdapter } = await import("../dist/adapters.mjs"));
 });
 
@@ -175,6 +176,47 @@ test("codex: 401 提示 token 过期；缺凭证直接报错", async () => {
   assert.ok(String(rows[0].reset_at).includes("过期"));
   const noCred = await runAdapter("codex", {}, async () => json({}));
   assert.ok(String(noCred[0].reset_at).includes("access_token"));
+});
+
+test("anyrouter: credits 余额与消费概况解析", async () => {
+  const f = async (url, init) => {
+    assert.equal(url, "https://anyrouter.dev/api/v1/credits");
+    assert.equal(init.headers.Authorization, "Bearer sk-ar-v1-test");
+    assert.equal(init.headers.Accept, "application/json");
+    return json({
+      balance: 9.734035,
+      monthly_balance: 7.5,
+      topup_balance: 2.234035,
+      used: 0.265965,
+      today_cost: 0.042,
+      currency: "usd",
+    });
+  };
+  const rows = await anyrouter.fetch({ api_key: "sk-ar-v1-test" }, f);
+  assert.equal(rows.find((r) => r.metric === "balance_usd").value, 9.734035);
+  assert.equal(rows.find((r) => r.metric === "monthly_balance_usd").value, 7.5);
+  assert.equal(rows.find((r) => r.metric === "topup_balance_usd").value, 2.234035);
+  assert.equal(rows.find((r) => r.metric === "used_usd").value, 0.265965);
+  assert.equal(rows.find((r) => r.metric === "today_cost_usd").value, 0.042);
+});
+
+test("anyrouter: base_url 可覆盖且拒绝不安全地址", async () => {
+  let seen = "";
+  const f = async (url) => {
+    seen = url;
+    return json({ balance: 1, currency: "usd" });
+  };
+  await anyrouter.fetch({ api_key: "k", base_url: "https://relay.example.com/api/v1/" }, f);
+  assert.equal(seen, "https://relay.example.com/api/v1/credits");
+  const rows = await runAdapter("anyrouter", { api_key: "k", base_url: "http://relay.example.com/api/v1" }, f);
+  assert.equal(rows[0].metric, "scrape_error");
+  assert.match(String(rows[0].reset_at), /HTTPS/);
+});
+
+test("anyrouter: credits API 错误转 scrape_error", async () => {
+  const rows = await runAdapter("anyrouter", { api_key: "bad" }, async () => json({}, 401));
+  assert.equal(rows[0].metric, "scrape_error");
+  assert.ok(String(rows[0].reset_at).includes("HTTP 401"));
 });
 
 test("cursor: 分项池 auto/api + 总占比解析", async () => {

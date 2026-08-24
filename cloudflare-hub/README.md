@@ -12,6 +12,7 @@ TokenDashboard 数据中枢：Cloudflare Workers + D1。存储用量、plan 额�
 | `zai` | Coding Plan `api_key` | Z.ai / GLM Coding Plan 5 小时、周额度与 MCP 月额度；兼容 V2/V3 |
 | `claude` / `cursor` / `copilot` | session/token | 对应订阅额度（非官方接口） |
 | `openai` / `deepseek` / `glm` | 标准 `api_key` | API 花费或余额 |
+| `anyrouter` | `api_key` | 余额、月度余额、充值余额与消费 |
 
 `minimax`、`zai` 默认使用国际站。中国站凭证可存为
 `{"api_key":"...","region":"cn"}`；自建 HTTPS 转发可额外设置 `base_url`（只接受不含认证信息、查询参数或片段的 HTTPS URL）。

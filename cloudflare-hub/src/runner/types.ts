@@ -13,7 +13,7 @@ export interface QuotaRow {
 /** 适配器约定：凭证来自 hub credentials 表（解密后的 JSON 对象） */
 export interface QuotaAdapter {
   provider: string;
-  /** cred: 该 provider 的凭证字段（openai/deepseek/glm/minimax/zai: api_key, copilot: token, claude: session_key, cursor: session, codex: access_token(+account_id), kimi: api_key） */
+  /** cred: 该 provider 的凭证字段（openai/deepseek/glm/minimax/zai/anyrouter: api_key, copilot: token, claude: session_key, cursor: session, codex: access_token(+account_id), kimi: api_key） */
   fetch(cred: Record<string, string>, f: typeof fetch): Promise<QuotaRow[]>;
 }
 

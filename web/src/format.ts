@@ -4,6 +4,7 @@ export const PROVIDERS: { id: string; name: string; color: string }[] = [
   { id: "kimi", name: "Kimi", color: "#d946ef" },
   { id: "minimax", name: "MiniMax Token Plan", color: "#f97316" },
   { id: "zai", name: "Z.ai Coding Plan", color: "#06b6d4" },
+  { id: "anyrouter", name: "AnyRouter", color: "#7c3aed" },
   { id: "openai", name: "OpenAI", color: "#10a37f" },
   { id: "copilot", name: "GitHub Copilot", color: "#8957e5" },
   { id: "glm", name: "GLM", color: "#3b82f6" },
@@ -34,6 +35,8 @@ export function primaryQuotaMetric(provider: string): string {
       return "balance_cny";
     case "cursor":
       return "requests_used";
+    case "anyrouter":
+      return "balance_usd";
     default:
       return "";
   }
@@ -94,6 +97,14 @@ export function metricLabel(metric: string): string {
       return "余额 CNY";
     case "month_cost_usd":
       return "本月花费";
+    case "monthly_balance_usd":
+      return "月度余额 USD";
+    case "topup_balance_usd":
+      return "充值余额 USD";
+    case "used_usd":
+      return "累计消费 USD";
+    case "today_cost_usd":
+      return "今日消费 USD";
     case "premium_used":
       return "高级请求已用";
     case "premium_remaining":
