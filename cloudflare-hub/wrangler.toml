@@ -32,3 +32,9 @@ ACCESS_TEAM = "gouzuang"
 ACCESS_AUD = "138aeabac84c1cd9e670ea466c676263b9fd4751129aa765c9e0aebc1a0172c6"
 RUNNER_SERVICE_TOKENS = "29d9f8f51ba251fa66ffffe504bc17b8.access"
 HUB_URL = "https://token.goudaijun.top"
+
+# Workers VPC：经 Cloudflare Tunnel 访问私网里的 runner webhook（webhook URL 配私网地址时生效）
+[[vpc_services]]
+binding = "RUNNER_VPC"
+service_id = "01a0328e-b0a9-7592-8818-896b643960fe"
+remote = true

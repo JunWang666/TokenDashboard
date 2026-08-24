@@ -20,6 +20,8 @@ export interface Env {
   HUB_URL: string;
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
+  // Workers VPC：经隧道触达私网 runner 的 webhook
+  RUNNER_VPC?: Fetcher;
 }
 
 const app = new Hono<{ Bindings: Env }>();

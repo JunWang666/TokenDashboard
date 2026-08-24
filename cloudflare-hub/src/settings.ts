@@ -77,7 +77,9 @@ export async function notifyRunner(env: Env): Promise<string | null> {
     }
   }
   try {
-    const res = await fetch(url, { method: "POST", headers, signal: AbortSignal.timeout(10_000) });
+    // 配置了 VPC 绑定时走 Cloudflare Tunnel 触达私网 runner（webhook URL 应填私网地址），否则走公网
+    const fetcher: typeof fetch = env.RUNNER_VPC ? env.RUNNER_VPC.fetch.bind(env.RUNNER_VPC) : fetch;
+    const res = await fetcher(url, { method: "POST", headers, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return `failed: HTTP ${res.status}`;
     return "triggered";
   } catch (e) {
