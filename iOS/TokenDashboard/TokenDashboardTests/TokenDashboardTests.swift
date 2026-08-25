@@ -61,6 +61,35 @@ struct TokenDashboardTests {
         #expect(CredentialProvider.all.count == 11)
     }
 
+    @Test @MainActor func kimiAuthorizationRecipeExtractsBearerTokenFromAPIV2Only() throws {
+        let payload = try ProviderAuthorizationRecipe.kimi.payload(
+            requestURL: "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats",
+            authorization: "Bearer web-token-test"
+        )
+
+        #expect(payload == ["web_token": "web-token-test"])
+
+        var rejectedForeignDomain = false
+        do {
+            _ = try ProviderAuthorizationRecipe.kimi.payload(
+                requestURL: "https://example.com/apiv2/usage",
+                authorization: "Bearer must-not-upload"
+            )
+        } catch {
+            rejectedForeignDomain = true
+        }
+        #expect(rejectedForeignDomain)
+    }
+
+    @Test @MainActor func codexAuthorizationRecipeExtractsChatGPTAccessToken() throws {
+        let payload = try ProviderAuthorizationRecipe.codex.payload(
+            requestURL: "https://chatgpt.com/backend-api/wham/usage",
+            authorization: "bearer codex-web-token"
+        )
+
+        #expect(payload == ["access_token": "codex-web-token"])
+    }
+
     @Test @MainActor func configurationRequiresEndpointAndSelectedAuthentication() {
         let base = APIConfiguration(
             hubURL: "https://token.example.com",

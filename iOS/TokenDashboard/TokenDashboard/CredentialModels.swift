@@ -40,6 +40,14 @@ struct CredentialProvider: Hashable, Identifiable, Sendable {
     let hint: String?
     let cookieRecipe: ProviderCookieRecipe?
 
+    var authorizationRecipe: ProviderAuthorizationRecipe? {
+        switch id {
+        case "codex": .codex
+        case "kimi": .kimi
+        default: nil
+        }
+    }
+
     static let all: [CredentialProvider] = [
         .init(
             id: "claude", title: "Claude",
@@ -52,14 +60,14 @@ struct CredentialProvider: Hashable, Identifiable, Sendable {
             id: "codex", title: "Codex",
             primary: .init(key: "access_token", label: "Codex access_token", placeholder: "eyJhbGciOi..."),
             extra: nil,
-            hint: "来自 ~/.codex/auth.json 的 tokens.access_token，不是 API Key。",
+            hint: "来自 ~/.codex/auth.json 的 tokens.access_token，也可通过本机 ChatGPT 网页登录自动获取。不是 API Key。",
             cookieRecipe: nil
         ),
         .init(
             id: "kimi", title: "Kimi",
             primary: .init(key: "api_key", label: "Kimi Code API Key", placeholder: "sk-kimi-..."),
             extra: .init(key: "web_token", label: "网页 access_token（可选）", placeholder: "eyJhbGciOi..."),
-            hint: "网页 token 来自 /apiv2/ 请求的 Authorization 头，不属于 Cookie，需手动填写。",
+            hint: "网页 token 来自 /apiv2/ 请求的 Authorization 头，可通过本机 WebKit 登录自动获取。",
             cookieRecipe: nil
         ),
         .init(
@@ -192,6 +200,84 @@ enum ProviderCookieError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notLoggedIn(let message): message
+        }
+    }
+}
+
+enum ProviderAuthorizationRecipe: String, Hashable, Identifiable, Sendable {
+    case codex
+    case kimi
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .codex: "ChatGPT 网页登录"
+        case .kimi: "Kimi 网页登录"
+        }
+    }
+
+    var loginURL: URL {
+        switch self {
+        case .codex: URL(string: "https://chatgpt.com/")!
+        case .kimi: URL(string: "https://www.kimi.com/")!
+        }
+    }
+
+    var targetDomain: String {
+        switch self {
+        case .codex: "chatgpt.com"
+        case .kimi: "kimi.com"
+        }
+    }
+
+    var targetPathPrefix: String {
+        switch self {
+        case .codex: "/backend-api/"
+        case .kimi: "/apiv2/"
+        }
+    }
+
+    var payloadField: String {
+        switch self {
+        case .codex: "access_token"
+        case .kimi: "web_token"
+        }
+    }
+
+    var requiresPrimaryBeforeCapture: Bool { self == .kimi }
+
+    func payload(requestURL: String, authorization: String) throws -> [String: String] {
+        guard let url = URL(string: requestURL),
+              let host = url.host?.lowercased(),
+              (host == targetDomain || host.hasSuffix(".\(targetDomain)")),
+              url.path.hasPrefix(targetPathPrefix) else {
+            throw ProviderAuthorizationError.unexpectedRequest
+        }
+
+        let parts = authorization.split(maxSplits: 1, whereSeparator: \.isWhitespace)
+        guard parts.count == 2,
+              String(parts[0]).caseInsensitiveCompare("Bearer") == .orderedSame else {
+            throw ProviderAuthorizationError.missingBearerToken
+        }
+        let token = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            throw ProviderAuthorizationError.missingBearerToken
+        }
+        return [payloadField: token]
+    }
+}
+
+enum ProviderAuthorizationError: LocalizedError {
+    case unexpectedRequest
+    case missingBearerToken
+
+    var errorDescription: String? {
+        switch self {
+        case .unexpectedRequest:
+            "请求不属于当前登录站点允许采集的 API。"
+        case .missingBearerToken:
+            "没有检测到有效的 Bearer Token，请登录后打开或刷新 Kimi 额度页面。"
         }
     }
 }

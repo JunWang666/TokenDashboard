@@ -189,7 +189,7 @@ private struct CredentialEditorView: View {
     @State private var primaryValue = ""
     @State private var extraValue = ""
     @State private var isSaving = false
-    @State private var isShowingCookieLogin = false
+    @State private var browserSheet: CredentialBrowserSheet?
     @State private var errorMessage: String?
     @State private var browserSaveNotice: String?
 
@@ -249,7 +249,7 @@ private struct CredentialEditorView: View {
                 if let recipe = provider.cookieRecipe {
                     Section {
                         Button("打开 \(provider.title) 登录页", systemImage: "safari") {
-                            isShowingCookieLogin = true
+                            browserSheet = .cookie(recipe)
                         }
                         if let browserSaveNotice {
                             Label(browserSaveNotice, systemImage: "checkmark.circle.fill")
@@ -259,6 +259,31 @@ private struct CredentialEditorView: View {
                         Text("网页登录采集")
                     } footer: {
                         Text("登录数据留在本机 WebKit；保存时只上传 \(recipe.targetDomain) 域所需的登录 Cookie。")
+                    }
+                }
+
+                if let recipe = provider.authorizationRecipe {
+                    Section {
+                        Button("从 \(provider.title) 网页获取 Authorization", systemImage: "safari") {
+                            browserSheet = .authorization(recipe)
+                        }
+                        .disabled(
+                            isCreating
+                                && recipe.requiresPrimaryBeforeCapture
+                                && primaryValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        )
+                        if let browserSaveNotice {
+                            Label(browserSaveNotice, systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        }
+                    } header: {
+                        Text("网页登录采集")
+                    } footer: {
+                        if isCreating, recipe.requiresPrimaryBeforeCapture {
+                            Text("请先填写 Kimi Code API Key。登录后只监听 kimi.com 域下 /apiv2/ 请求的 Authorization Bearer Token。")
+                        } else {
+                            Text("登录后只监听 \(recipe.targetDomain) 域下 \(recipe.targetPathPrefix) 请求的 Authorization Bearer Token。")
+                        }
                     }
                 }
 
@@ -299,10 +324,19 @@ private struct CredentialEditorView: View {
             extraValue = ""
             browserSaveNotice = nil
         }
-        .sheet(isPresented: $isShowingCookieLogin) {
-            if let recipe = provider.cookieRecipe {
+        .sheet(item: $browserSheet) { sheet in
+            switch sheet {
+            case .cookie(let recipe):
                 ProviderCookieLoginView(recipe: recipe) { payload in
-                    try await save(payload: payload)
+                    try await save(payload: try mergedBrowserPayload(payload))
+                    browserSaveNotice = "已保存到 Hub"
+                }
+#if os(macOS)
+                .frame(minWidth: 760, idealWidth: 900, minHeight: 620, idealHeight: 760)
+#endif
+            case .authorization(let recipe):
+                ProviderAuthorizationLoginView(recipe: recipe) { payload in
+                    try await save(payload: try mergedBrowserPayload(payload))
                     browserSaveNotice = "已保存到 Hub"
                 }
 #if os(macOS)
@@ -379,10 +413,40 @@ private struct CredentialEditorView: View {
         }
         return payload
     }
+
+    private func mergedBrowserPayload(_ captured: [String: String]) throws -> [String: String] {
+        var payload = typedPayload
+        payload.merge(captured) { _, capturedValue in capturedValue }
+        if isCreating,
+           payload[provider.primary.key]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            throw CredentialEditorError.missingPrimary(provider.primary.label)
+        }
+        return payload
+    }
 }
 
 private enum CredentialEditorError: LocalizedError {
     case emptyPayload
+    case missingPrimary(String)
 
-    var errorDescription: String? { "请至少填写一个凭证字段。" }
+    var errorDescription: String? {
+        switch self {
+        case .emptyPayload:
+            "请至少填写一个凭证字段。"
+        case .missingPrimary(let field):
+            "新建凭证前请先填写 \(field)。"
+        }
+    }
+}
+
+private enum CredentialBrowserSheet: Identifiable {
+    case cookie(ProviderCookieRecipe)
+    case authorization(ProviderAuthorizationRecipe)
+
+    var id: String {
+        switch self {
+        case .cookie(let recipe): "cookie/\(recipe.id)"
+        case .authorization(let recipe): "authorization/\(recipe.id)"
+        }
+    }
 }
