@@ -38,6 +38,8 @@ final class AppSettings {
         )
     }
 
+    var isConfigured: Bool { configuration.isComplete }
+
     init(defaults: UserDefaults? = nil) {
         let defaults = defaults ?? SharedConfiguration.defaults
         hubURL = defaults.string(forKey: Key.hubURL) ?? ""

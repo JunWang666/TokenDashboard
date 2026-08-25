@@ -7,29 +7,59 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var settings = AppSettings()
-    @State private var isShowingSettings = false
+    @State private var presentedSheet: RootSheet?
 
     var body: some View {
+        Group {
+            if settings.isConfigured {
+                dashboard
+                    .transition(.opacity)
+            } else {
+                StartView(settings: settings)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: settings.isConfigured)
+        .sheet(item: $presentedSheet) { sheet in
+            switch sheet {
+            case .credentials:
+                CredentialManagementView(configuration: settings.configuration)
+#if os(macOS)
+                    .frame(minWidth: 620, idealWidth: 700, minHeight: 560, idealHeight: 680)
+#endif
+            case .settings:
+                SettingsView(settings: settings)
+#if os(macOS)
+                    .frame(minWidth: 540, idealWidth: 620, minHeight: 560, idealHeight: 680)
+#endif
+            }
+        }
+    }
+
+    private var dashboard: some View {
         NavigationStack {
             QuotaDashboardView(
                 configuration: settings.configuration,
                 reloadID: settings.revision,
-                onShowSettings: { isShowingSettings = true }
+                onShowCredentials: { presentedSheet = .credentials },
+                onShowSettings: { presentedSheet = .settings }
             )
             .navigationTitle("额度")
         }
-        .sheet(isPresented: $isShowingSettings) {
-            SettingsView(settings: settings)
-#if os(macOS)
-                .frame(minWidth: 540, idealWidth: 620, minHeight: 560, idealHeight: 680)
-#endif
-        }
     }
+}
+
+private enum RootSheet: String, Identifiable {
+    case credentials
+    case settings
+
+    var id: String { rawValue }
 }
 
 private struct QuotaDashboardView: View {
     let configuration: APIConfiguration
     let reloadID: Int
+    let onShowCredentials: () -> Void
     let onShowSettings: () -> Void
 
     @State private var state: QuotaLoadState = .idle
@@ -94,6 +124,9 @@ private struct QuotaDashboardView: View {
                 }
                 .disabled(isCollecting)
                 .accessibilityIdentifier("collectButton")
+
+                Button("凭证管理", systemImage: "key.horizontal", action: onShowCredentials)
+                    .accessibilityIdentifier("credentialsButton")
 
                 Button("连接设置", systemImage: "gearshape", action: onShowSettings)
                     .accessibilityIdentifier("settingsButton")

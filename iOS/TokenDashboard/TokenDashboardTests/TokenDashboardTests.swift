@@ -34,4 +34,67 @@ struct TokenDashboardTests {
 
         #expect(rows == [used])
     }
+
+    @Test @MainActor func claudeCookieRecipeUploadsOnlySessionKey() throws {
+        let payload = try ProviderCookieRecipe.claude.payload(from: [
+            cookie(name: "sessionKey", value: "sk-ant-test", domain: ".claude.ai"),
+            cookie(name: "analytics", value: "ignored", domain: ".claude.ai"),
+        ])
+
+        #expect(payload == ["session_key": "sk-ant-test"])
+    }
+
+    @Test @MainActor func cursorCookieRecipeUploadsCompleteCursorCookieHeader() throws {
+        let payload = try ProviderCookieRecipe.cursor.payload(from: [
+            cookie(name: "WorkosCursorSessionToken", value: "token", domain: ".cursor.com"),
+            cookie(name: "other", value: "value", domain: "www.cursor.com"),
+            cookie(name: "unrelated", value: "ignored", domain: ".example.com"),
+        ])
+
+        #expect(payload["session"] == "WorkosCursorSessionToken=token; other=value")
+    }
+
+    @Test @MainActor func providerFieldsStayAlignedWithWebCredentialSchema() {
+        #expect(CredentialProvider.find("claude").primary.key == "session_key")
+        #expect(CredentialProvider.find("cursor").primary.key == "session")
+        #expect(CredentialProvider.find("kimi").extra?.key == "web_token")
+        #expect(CredentialProvider.all.count == 11)
+    }
+
+    @Test @MainActor func configurationRequiresEndpointAndSelectedAuthentication() {
+        let base = APIConfiguration(
+            hubURL: "https://token.example.com",
+            authMode: .webAccess,
+            accessClientID: "",
+            accessClientSecret: "",
+            developerToken: "",
+            accessCookieHeader: ""
+        )
+
+        #expect(!base.isComplete)
+
+        var web = base
+        web.accessCookieHeader = "CF_Authorization=test"
+        #expect(web.isComplete)
+
+        var service = base
+        service.authMode = .cloudflareAccess
+        service.accessClientID = "client-id"
+        service.accessClientSecret = "client-secret"
+        #expect(service.isComplete)
+
+        var invalidEndpoint = web
+        invalidEndpoint.hubURL = "token.example.com"
+        #expect(!invalidEndpoint.isComplete)
+    }
+
+    private func cookie(name: String, value: String, domain: String) -> HTTPCookie {
+        HTTPCookie(properties: [
+            .name: name,
+            .value: value,
+            .domain: domain,
+            .path: "/",
+            .secure: "TRUE",
+        ])!
+    }
 }

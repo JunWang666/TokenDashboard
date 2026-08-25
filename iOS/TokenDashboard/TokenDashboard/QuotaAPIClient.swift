@@ -12,6 +12,32 @@ struct APIConfiguration: Hashable, Sendable {
     var accessClientSecret: String
     var developerToken: String
     var accessCookieHeader: String
+
+    var endpointURL: URL? {
+        let value = hubURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: value),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil else {
+            return nil
+        }
+        return url
+    }
+
+    var isComplete: Bool {
+        guard endpointURL != nil else { return false }
+        switch authMode {
+        case .webAccess:
+            return !accessCookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .cloudflareAccess:
+            return !accessClientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !accessClientSecret.isEmpty
+        case .developerToken:
+            return !developerToken.isEmpty
+        case .none:
+            return true
+        }
+    }
 }
 
 enum AuthenticationMode: String, CaseIterable, Identifiable, Sendable {
@@ -57,15 +83,68 @@ struct QuotaAPIClient: Sendable {
         return response.rows ?? 0
     }
 
+    func fetchCredentials() async throws -> CredentialListResponse {
+        let request = try makeRequest(
+            pathComponents: ["api", "v1", "credentials"],
+            method: "GET",
+            timeoutInterval: 20
+        )
+        return try await send(request, as: CredentialListResponse.self)
+    }
+
+    func createCredential(
+        provider: String,
+        name: String,
+        payload: [String: String]
+    ) async throws -> CredentialWriteResponse {
+        try await writeCredential(
+            provider: provider,
+            name: name,
+            payload: payload,
+            method: "PUT"
+        )
+    }
+
+    func updateCredential(
+        provider: String,
+        name: String,
+        payload: [String: String]
+    ) async throws -> CredentialWriteResponse {
+        try await writeCredential(
+            provider: provider,
+            name: name,
+            payload: payload,
+            method: "PATCH"
+        )
+    }
+
+    private func writeCredential(
+        provider: String,
+        name: String,
+        payload: [String: String],
+        method: String
+    ) async throws -> CredentialWriteResponse {
+        var request = try makeRequest(
+            pathComponents: ["api", "v1", "credentials", provider],
+            method: method,
+            timeoutInterval: 20
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            CredentialWriteRequest(
+                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                payload: payload
+            )
+        )
+        return try await send(request, as: CredentialWriteResponse.self)
+    }
+
     private func makeRequest(
         pathComponents: [String],
         method: String,
         timeoutInterval: TimeInterval
     ) throws -> URLRequest {
-        guard let baseURL = URL(string: configuration.hubURL),
-              let scheme = baseURL.scheme?.lowercased(),
-              ["http", "https"].contains(scheme),
-              baseURL.host != nil else {
+        guard let baseURL = configuration.endpointURL else {
             throw QuotaAPIError.invalidHubURL
         }
 
@@ -136,6 +215,11 @@ private struct CollectResponse: Decodable, Sendable {
     let ok: Bool
     let rows: Int?
     let error: String?
+}
+
+private struct CredentialWriteRequest: Encodable, Sendable {
+    let name: String
+    let payload: [String: String]
 }
 
 enum QuotaAPIError: LocalizedError {

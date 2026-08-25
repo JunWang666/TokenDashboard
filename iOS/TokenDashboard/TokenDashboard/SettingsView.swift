@@ -87,7 +87,7 @@ struct SettingsView: View {
                         EmptyView()
                     }
                 } header: {
-                    Text("只读鉴权")
+                    Text("鉴权")
                 } footer: {
                     switch authMode {
                     case .webAccess:
@@ -102,7 +102,7 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Label("App 只调用 GET /api/v1/quota/current，不会写入或删除任何 Hub 数据。", systemImage: "lock.shield")
+                    Label("额度页面只读取数据；“立即采集”和“凭证管理”会按你的操作写入 Hub。App 不提供删除凭证功能。", systemImage: "lock.shield")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
