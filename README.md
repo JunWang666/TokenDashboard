@@ -20,6 +20,7 @@
 | [web](web/README.md) | Pages 前端：Overview / Usage / Quota / Devices / Credentials | ✅ 已实现，构建通过 |
 | [client](client/README.md) | 桌面采集器（Go + Wails）+ headless CLI：claude-code/cursor 采集、spool 离线缓冲、loopback Access 登录、凭证推送 | ✅ 已实现，Go 测试通过 |
 | [runner](runner/README.md) | Go 独立额度采集器（kimi/codex 适配器，Docker 部署）：对端 WAF 拦截 Workers 出口请求的 provider 由它采集 | ✅ 已实现，Go 测试通过 |
+| [iOS/TokenDashboard](iOS/TokenDashboard) | SwiftUI 客户端：iOS 18+ / iPadOS 18+ / macOS 15.6+，只读额度、立即采集、Cloudflare Access 登录、可配置桌面 Widget | ✅ 原生双平台构建通过 |
 | design/ | 设计文档 | — |
 
 ## 快速开始（本地）
@@ -70,6 +71,7 @@ cd client && go build ./cmd/tokendash
 | web | `npm run build`（tsc + vite build） |
 | client | `go test ./...`、`go vet ./...`、`go build -tags wails ./...` |
 | runner | `cd runner && go test ./...` |
+| Apple App | `xcodebuild -project iOS/TokenDashboard/TokenDashboard.xcodeproj -scheme TokenDashboard build-for-testing`（分别选择 iOS Simulator 或 My Mac） |
 
 ## 里程碑状态
 

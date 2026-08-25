@@ -20,6 +20,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(settings: settings)
+#if os(macOS)
+                .frame(minWidth: 540, idealWidth: 620, minHeight: 560, idealHeight: 680)
+#endif
         }
     }
 }
@@ -77,7 +80,7 @@ private struct QuotaDashboardView: View {
             }
         }
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 Button {
                     Task { await collectNow() }
                 } label: {
@@ -131,7 +134,11 @@ private struct QuotaDashboardView: View {
                 }
             }
         }
+#if os(macOS)
+        .listStyle(.inset)
+#else
         .listStyle(.insetGrouped)
+#endif
         .refreshable {
             await load(showLoading: false)
         }

@@ -8,7 +8,7 @@ import Testing
 @testable import TokenDashboard
 
 struct TokenDashboardTests {
-    @Test func decodesQuotaAndPreservesWebUsagePercent() throws {
+    @Test @MainActor func decodesQuotaAndPreservesWebUsagePercent() throws {
         let data = Data(#"{"rows":[{"provider":"codex","metric":"session_used_pct","account":"personal","value":37,"limit_value":100,"unit":"percent","reset_at":null,"captured_at":"2026-08-23T12:00:00Z"}]}"#.utf8)
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -20,7 +20,7 @@ struct TokenDashboardTests {
         #expect(response.rows[0].displayFraction == 0.37)
     }
 
-    @Test func copilotUsesSamePrimaryMetricAsWeb() {
+    @Test @MainActor func copilotUsesSamePrimaryMetricAsWeb() {
         let used = QuotaSnapshot(
             provider: "copilot", metric: "premium_used", account: "default",
             value: 20, limitValue: 100, unit: "requests", resetAt: nil, capturedAt: "now"

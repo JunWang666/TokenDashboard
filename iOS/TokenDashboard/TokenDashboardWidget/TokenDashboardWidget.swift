@@ -10,6 +10,7 @@ import WidgetKit
 
 private enum WidgetSharedConfiguration {
     static let appGroup = "group.com.gouzuang.TokenDashboard"
+    static let keychainAccessGroup = "4RN53WGN2C.com.gouzuang.TokenDashboard.shared"
     static let keychainService = "com.gouzuang.TokenDashboard"
     static let cacheKey = "widget.quotaRows"
 
@@ -437,7 +438,7 @@ private enum WidgetQuotaLoader {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: WidgetSharedConfiguration.keychainService,
             kSecAttrAccount as String: account,
-            kSecAttrAccessGroup as String: WidgetSharedConfiguration.appGroup,
+            kSecAttrAccessGroup as String: WidgetSharedConfiguration.keychainAccessGroup,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]

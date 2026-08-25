@@ -38,7 +38,8 @@ final class AppSettings {
         )
     }
 
-    init(defaults: UserDefaults = SharedConfiguration.defaults) {
+    init(defaults: UserDefaults? = nil) {
+        let defaults = defaults ?? SharedConfiguration.defaults
         hubURL = defaults.string(forKey: Key.hubURL) ?? ""
         authMode = AuthenticationMode(
             rawValue: defaults.string(forKey: Key.authMode) ?? ""
@@ -99,7 +100,7 @@ private enum KeychainStore {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
-            kSecAttrAccessGroup as String: SharedConfiguration.appGroup,
+            kSecAttrAccessGroup as String: SharedConfiguration.keychainAccessGroup,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
@@ -114,7 +115,7 @@ private enum KeychainStore {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
-            kSecAttrAccessGroup as String: SharedConfiguration.appGroup,
+            kSecAttrAccessGroup as String: SharedConfiguration.keychainAccessGroup,
         ]
 
         if value.isEmpty {

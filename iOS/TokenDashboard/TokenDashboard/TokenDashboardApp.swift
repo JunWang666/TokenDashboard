@@ -11,5 +11,8 @@ struct TokenDashboardApp: App {
         WindowGroup {
             ContentView()
         }
+#if os(macOS)
+        .defaultSize(width: 760, height: 680)
+#endif
     }
 }

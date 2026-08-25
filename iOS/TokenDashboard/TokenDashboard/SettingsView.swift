@@ -31,9 +31,11 @@ struct SettingsView: View {
             Form {
                 Section("Hub") {
                     TextField("https://token.example.com", text: $hubURL)
+#if !os(macOS)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
+#endif
                 }
 
                 Section {
@@ -68,13 +70,19 @@ struct SettingsView: View {
                         }
                     case .cloudflareAccess:
                         TextField("Client ID", text: $accessClientID)
+#if !os(macOS)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+#endif
                         SecureField("Client Secret", text: $accessClientSecret)
+#if !os(macOS)
                             .textInputAutocapitalization(.never)
+#endif
                     case .developerToken:
                         SecureField("DEV_TOKEN", text: $developerToken)
+#if !os(macOS)
                             .textInputAutocapitalization(.never)
+#endif
                     case .none:
                         EmptyView()
                     }
@@ -100,7 +108,9 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("连接设置")
+#if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -118,6 +128,9 @@ struct SettingsView: View {
             AccessLoginView(hubURL: hubURL) { cookieHeader in
                 settings.recordWebAccessCookie(cookieHeader)
             }
+#if os(macOS)
+            .frame(minWidth: 720, idealWidth: 860, minHeight: 600, idealHeight: 720)
+#endif
         }
     }
 
