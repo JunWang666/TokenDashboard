@@ -3,6 +3,9 @@ node_modules/
 dist/
 .dev.vars
 *.log
+.DS_Store
+xcuserdata/
+*.xcuserstate
 
 # Go
 client/tokendash
