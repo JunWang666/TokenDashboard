@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "db:migrate:local": "wrangler d1 migrations apply tokendash --local",
-    "db:migrate:remote": "wrangler d1 migrations apply tokendash --remote",
+    "dev": "npx wrangler dev --config ../wrangler.jsonc",
+    "deploy": "npx wrangler deploy --config ../wrangler.jsonc",
+    "db:migrate:local": "npx wrangler d1 migrations apply DB --local --config ../wrangler.jsonc",
+    "db:migrate:remote": "npx wrangler d1 migrations apply DB --remote --config ../wrangler.jsonc",
     "test": "node --test test/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "rotate-key": "node scripts/rotate-key.mjs"

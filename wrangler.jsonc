@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tokendash-hub",
+  "main": "cloudflare-hub/src/index.ts",
+  "compatibility_date": "2026-08-26",
+  "workers_dev": true,
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+  "assets": {
+    "directory": "web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tokendash",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "cloudflare-hub/migrations"
+    }
+  ],
+  "vars": {
+    "RUNNER_SERVICE_TOKENS": "tokendash-runner"
+  }
+}

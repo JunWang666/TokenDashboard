@@ -5,7 +5,7 @@ import * as ingest from "./ingest";
 import * as query from "./query";
 import * as credentials from "./credentials";
 import * as settings from "./settings";
-import { collect } from "./runner/index";
+import { collect, INTERNAL_HUB_URL } from "./runner/index";
 
 export interface Env {
   DB: D1Database;
@@ -17,7 +17,7 @@ export interface Env {
   CORS_ORIGINS?: string;
   DEV_TOKEN?: string;
   // runner（采集器，与本 Worker 合并部署）
-  HUB_URL: string;
+  HUB_URL?: string;
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
   // Workers VPC：经隧道触达私网 runner 的 webhook
@@ -79,11 +79,12 @@ api.post("/collect", requireRole("user", "client"), async (c) => {
 
 app.route("/api/v1", api);
 
-/** 合并部署下 runner 的 loopback：打向 HUB_URL 的请求直接进本 Worker，不走公网回环 */
+/** 合并部署下 runner 的 loopback：打向 HUB_URL 的请求直接进本 Worker，不走公网回环。
+ * 一键部署实例没有固定域名时，使用不会出网的内部 origin。 */
 function localFetch(env: Env, ctx: ExecutionContext): typeof fetch {
   return (input, init) => {
     const req = new Request(input, init);
-    const hubOrigin = env.HUB_URL ? new URL(env.HUB_URL).origin : null;
+    const hubOrigin = env.HUB_URL ? new URL(env.HUB_URL).origin : new URL(INTERNAL_HUB_URL).origin;
     if (hubOrigin && new URL(req.url).origin === hubOrigin) {
       const headers = new Headers(req.headers);
       headers.set("X-Tokendash-Internal", env.CREDENTIALS_KEY ?? "");
@@ -94,7 +95,7 @@ function localFetch(env: Env, ctx: ExecutionContext): typeof fetch {
 }
 
 /** 手动触发一轮额度采集（生产经 Access service token 保护） */
-app.get("/__trigger", async (c) => {
+app.get("/__trigger", authMiddleware, requireRole("user", "client"), async (c) => {
   try {
     const n = await collect(c.env, localFetch(c.env, c.executionCtx));
     return c.json({ ok: true, rows: n });

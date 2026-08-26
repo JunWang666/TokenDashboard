@@ -1,80 +1,62 @@
 # cloudflare-hub
 
-TokenDashboard 数据中枢：Cloudflare Workers + D1。存储用量、plan 额度快照与加密的 runner 凭证，提供 ingest / 查询 / 凭证管理 API。
+TokenDashboard 的 Cloudflare Worker 源码：Hono API、D1 存储、加密凭证管理、Workers Assets 和内置额度采集 runner。
 
-## 支持的额度服务商
+部署配置在仓库根目录的 [`wrangler.jsonc`](../wrangler.jsonc)，因此根目录的 Deploy to Cloudflare 按钮可以同时看到 Worker、前端产物和 migrations。
 
-| provider | 凭证字段 | 采集内容 |
-|---|---|---|
-| `codex` | `access_token` | ChatGPT/Codex 5 小时、周额度与 credits |
-| `kimi` | `api_key`，可选 `web_token` | Kimi Code 5 小时、周额度与可选月额度 |
-| `minimax` | Token Plan `api_key` | MiniMax Token Plan 5 小时、周额度；兼容多资源额度 |
-| `zai` | Coding Plan `api_key` | Z.ai / GLM Coding Plan 5 小时、周额度与 MCP 月额度；兼容 V2/V3 |
-| `claude` / `cursor` / `copilot` | session/token | 对应订阅额度（非官方接口） |
-| `openai` / `deepseek` / `glm` | 标准 `api_key` | API 花费或余额 |
-| `anyrouter` | `api_key` | 余额、月度余额、充值余额与消费 |
+## 支持的 provider
 
-`minimax`、`zai` 默认使用国际站。中国站凭证可存为
-`{"api_key":"...","region":"cn"}`；自建 HTTPS 转发可额外设置 `base_url`（只接受不含认证信息、查询参数或片段的 HTTPS URL）。
+`codex`、`kimi`、`minimax`、`zai`、`claude`、`cursor`、`copilot`、`openai`、`deepseek`、`glm`、`anyrouter`。
+
+`minimax` 和 `zai` 默认使用国际站；凭证可以附带 `region: "cn"` 或安全的 HTTPS `base_url`。Kimi/Codex 在部分网络出口需要使用仓库根目录的 [`runner`](../runner/README.md) 外部采集器。
 
 ## 本地开发
 
 ```bash
+cd ..
 npm install
-cp .dev.vars.example .dev.vars   # 本地开发令牌
-npx wrangler dev                 # 启动本地 worker（含本地 D1）
-npx wrangler d1 migrations apply tokendash --local   # 初始化 schema
+cp .dev.vars.example .dev.vars
+npm run db:migrate:local
+npm run dev
 ```
 
-本地开发模式下用 `DEV_TOKEN` 代替 Cloudflare Access 鉴权：
+本地请求使用 `Authorization: Bearer <DEV_TOKEN>`。追加 `:client` 或 `:runner` 可模拟对应角色。生产环境不要配置 `DEV_TOKEN`，改用 Cloudflare Access JWT 或 service token。
 
-| 角色 | Authorization 头 |
-|------|-----------------|
-| user | `Bearer <DEV_TOKEN>` |
-| client | `Bearer <DEV_TOKEN>:client` |
-| runner | `Bearer <DEV_TOKEN>:runner` |
+## API
 
-生产环境**不要配置 DEV_TOKEN**，改为 Access JWT 校验（`ACCESS_TEAM` / `ACCESS_AUD`）。
+| 方法 | 路径 | 角色 | 说明 |
+| --- | --- | --- | --- |
+| POST | `/api/v1/ingest/usage` | user/client | 批量上报小时用量 |
+| POST | `/api/v1/ingest/quota` | runner | 写入额度快照 |
+| GET | `/api/v1/bootstrap` | user/client | 总览首屏数据 |
+| GET | `/api/v1/summary` | user/client | 用量汇总 |
+| GET | `/api/v1/usage/timeseries` | user/client | 用量时间序列 |
+| GET | `/api/v1/quota/current` | user/client | 最新额度 |
+| GET | `/api/v1/quota/history` | user/client | 额度历史 |
+| GET | `/api/v1/devices` | user/client | 设备心跳 |
+| GET/PUT/PATCH/DELETE | `/api/v1/credentials/:provider` | user/client | 加密凭证管理 |
+| GET | `/api/v1/internal/credentials` | runner | runner 内部凭证接口 |
+| POST | `/api/v1/collect` | user/client | 立即采集 |
+| GET | `/healthz` | 公开 | 健康检查 |
 
-## 测试
+## 测试与部署
 
 ```bash
-npm test          # miniflare 集成测试 + runner 适配器单测（node --test，29 个用例）
+cd ..
+npm test
 npm run typecheck
+npm run build
+npm run deploy
 ```
 
-## 部署
-
-```bash
-npx wrangler d1 create tokendash            # 首次：创建数据库，把 id 回填 wrangler.toml
-npx wrangler d1 migrations apply tokendash --remote
-npx wrangler secret put CREDENTIALS_KEY     # 32 字节 base64：openssl rand -base64 32
-npx wrangler deploy
-```
+`npm run deploy` 会构建 `web/dist`、应用 D1 migrations，再执行 `wrangler deploy`。一键部署时 Cloudflare 会自动创建 D1 并回填 `wrangler.jsonc` 中的 `database_id`；手动部署则先执行 `npx wrangler d1 create tokendash` 并写入该 ID。
 
 ## 凭证密钥轮换
 
 ```bash
 export OLD_KEY=<旧密钥> NEW_KEY=<新密钥>
-node scripts/rotate-key.mjs --remote   # 解密→重加密全部 credentials 行
-npx wrangler secret put CREDENTIALS_KEY  # 然后更新 secret 为新密钥
+node scripts/rotate-key.mjs --remote
+npx wrangler secret put CREDENTIALS_KEY
 ```
 
-## API
-
-| 方法 | 路径 | 角色 | 说明 |
-|------|------|------|------|
-| POST | `/api/v1/ingest/usage` | user / client | 批量上报 usage_hourly（upsert 幂等） |
-| POST | `/api/v1/ingest/quota` | runner | 批量写入 quota_snapshots |
-| GET | `/api/v1/summary?from=&to=&group_by=provider/model/day` | user / client | 用量汇总 |
-| GET | `/api/v1/usage/timeseries?from=&to=&interval=hour/day&group_by=` | user / client | 时间序列 |
-| GET | `/api/v1/bootstrap?from=&to=` | user / client | 总览首屏（可传 UTC 时间范围） |
-| GET | `/api/v1/quota/current` | user / client | 各 (provider, metric) 最新快照 |
-| GET | `/api/v1/quota/history?provider=&metric=&from=&to=` | user / client | 额度历史 |
-| GET | `/api/v1/devices` | user / client | 设备心跳 |
-| GET | `/api/v1/credentials` | user / client | 凭证列表（仅 hint） |
-| PUT | `/api/v1/credentials/:provider` | user / client | 写入/整组替换凭证（加密存储） |
-| PATCH | `/api/v1/credentials/:provider` | user / client | 局部更新已有凭证（只覆盖 `payload` 中提交的字段） |
-| DELETE | `/api/v1/credentials/:provider` | user | 删除凭证 |
-| GET | `/api/v1/internal/credentials` | runner | 全部凭证明文（仅 runner token） |
-| GET | `/healthz` | 公开 | 健康检查 |
+先确认脚本成功完成，再替换 Worker secret；新旧 key 都必须是 32 字节原始值的 base64 编码。

@@ -107,6 +107,12 @@ test("healthz open", async () => {
   assert.equal((await res.json()).ok, true);
 });
 
+test("merged runner uses internal loopback when HUB_URL is absent", async () => {
+  const res = await get("/__trigger", user);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true, rows: 0 });
+});
+
 test("rejects anonymous API calls", async () => {
   assert.equal((await get("/api/v1/summary")).status, 401);
   assert.equal((await get("/api/v1/summary", { headers: { Authorization: "Bearer nope" } })).status, 401);

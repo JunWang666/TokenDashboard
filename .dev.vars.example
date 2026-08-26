@@ -1,0 +1,3 @@
+# Local-only development values. Never copy this file to production.
+DEV_TOKEN=local-dev-secret
+CREDENTIALS_KEY=REPLACE_WITH_32_BYTE_BASE64

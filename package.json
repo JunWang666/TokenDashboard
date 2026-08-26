@@ -1,0 +1,40 @@
+{
+  "name": "tokendash",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "cloudflare-hub",
+    "web"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace web",
+    "dev": "npm run build && npx wrangler dev",
+    "deploy": "npm run build && npm run db:migrate:remote && npx wrangler deploy",
+    "db:migrate:local": "npx wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "npx wrangler d1 migrations apply DB --remote",
+    "test": "npm test --workspace cloudflare-hub",
+    "typecheck": "npm run typecheck --workspace web && npm run typecheck --workspace cloudflare-hub"
+  },
+  "devDependencies": {
+    "wrangler": "^4.126.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DB": {
+        "description": "A D1 database for usage, quota snapshots, and encrypted provider credentials. Deploy to Cloudflare provisions it automatically."
+      },
+      "CREDENTIALS_KEY": {
+        "description": "Required secret: generate with `openssl rand -base64 32`. This key encrypts all provider credentials stored in D1; keep it backed up."
+      },
+      "ACCESS_TEAM": {
+        "description": "Optional until Cloudflare Access is configured. Set this to your Zero Trust team name, for example `example.cloudflareaccess.com` uses `example`."
+      },
+      "ACCESS_AUD": {
+        "description": "Optional until Cloudflare Access is configured. Set this to the AUD tag of the Access application protecting this Worker."
+      }
+    }
+  }
+}

@@ -11,7 +11,7 @@
                         │                                                                  │
   ┌──────────────┐      │   ┌───────────────┐        ┌──────────────┐                      │
   │   client     │      │   │      hub      │        │     web      │                      │
-  │  (Go 采集器)  │──────┼──▶│ Workers + D1  │◀───────│ Pages 前端   │                      │
+  │  (Go 采集器)  │──────┼──▶│ Workers + D1  │◀───────│ Worker Assets│                      │
   │ 解析本地日志  │      │   │ 存储 + 查询API │  查询  │ React 仪表盘 │                      │
   └──────────────┘      │   └───────▲───────┘        └──────────────┘                      │
                         │           │                                                      │
@@ -32,7 +32,7 @@
 | `cloudflare-hub/` | Cloudflare Workers + D1 | 数据存储（D1），ingest API + 查询 API + 凭证管理 API |
 | 内置 runner（hub `src/runner/`） | hub 同进程 cron | 定时从 hub 拉取凭证，调用各服务商接口，采集 plan 额度快照 |
 | `runner/` | 任意机器（Go + Docker） | 同上，承载被对端 WAF 拦截 Workers 出口的 provider（kimi/codex） |
-| `web/` | Cloudflare Pages | Web 仪表盘，展示用量和额度；管理 runner 凭证 |
+| `web/` | Worker Static Assets | Web 仪表盘，展示用量和额度；管理 runner 凭证 |
 
 安全：所有入口都挂在 **Cloudflare Access** 后面，共三种身份：
 
@@ -41,7 +41,7 @@
 - **web 浏览器**：Access 登录（邮箱一次性 PIN 或 IdP）；
 - hub 内部再校验 Access JWT（纵深防御）。
 
-资源消耗：个人规模下全部可跑在 Cloudflare 免费额度内（Workers 10 万请求/天、D1 免费档、Pages 免费、Zero Trust 50 用户以内免费）。
+资源消耗：个人规模下全部可跑在 Cloudflare 免费额度内（Workers、D1、Workers Static Assets 和 Zero Trust 按当前账号计划执行）。
 
 ## 2. 数据模型（D1 / SQLite）
 
@@ -191,8 +191,8 @@ Access 已经在边缘拦截未认证请求，但 hub 仍做两层校验（纵�
 ### 目录
 
 ```
+wrangler.jsonc          # 根目录部署入口：Worker、Assets、D1 和 cron
 cloudflare-hub/
-  wrangler.toml          # d1_databases 绑定、ACCESS_AUD 环境变量
   migrations/0001_init.sql
   src/
     index.ts             # Hono 路由入口
@@ -372,9 +372,9 @@ interface QuotaAdapter {
 
 分工由 hub 统一决定，runner 侧无需任何 provider 配置：hub 的 `GET /api/v1/internal/credentials` 按调用方身份过滤——外部 runner（service token 认证）只拿到 `EXTERNAL_RUNNER_PROVIDERS`（对端 WAF 拦截 Workers 出口的 provider，当前为 kimi/codex，定义在 `cloudflare-hub/src/credentials.ts`），内置 runner（进程内 loopback）拿其余全部。新增被 WAF 拦截的 provider 时加进这个集合即可。
 
-## 6. web（Pages 前端）
+## 6. web（Worker Static Assets）
 
-技术栈：React + Vite + Tailwind + Recharts，构建产物部署到 Cloudflare Pages。
+技术栈：React + Vite + Tailwind + Recharts，构建产物由 Worker 的 Static Assets 托管。
 
 页面：
 
@@ -384,21 +384,21 @@ interface QuotaAdapter {
 4. **Devices**：各设备最近上报时间，发现采集掉线；
 5. **Settings → Credentials**：管理 runner 凭证——每个 provider 一行表单（粘贴 key/cookie → `PUT /credentials/:provider`），显示 hint（末 4 位）、更新时间、更新来源（web 还是某台 client）、最近采集是否成功；可删除。敏感凭证（sessionKey 类）也可以提示「去 client 上一键推送」。
 
-前端通过 fetch 调 hub API（`https://hub.example.com`）。两个 Access App 在同一 team、同主域的子域上，Access cookie 共享，浏览器只需登录一次；hub 端配置 CORS 允许 Pages 域并带 credentials。
+前端默认通过同源路径 `/api` 调 hub API，因此不需要单独的 Pages 项目或 CORS。若把前端单独托管，才需要设置 `VITE_HUB_URL`、配置 CORS，并让前端与 hub 使用同一 Access team。
 
 ## 7. Zero Trust 配置清单
 
 1. Zero Trust 后台创建 team（`<team>.cloudflareaccess.com`），登录方式开 One-time PIN；
-2. **Access App A：`hub.example.com`**：
-   - 策略（OR）：Browser 允许你的邮箱（web 前端 + 桌面 client 共用此身份）；Service Auth 允许 service token `tokendash-runner`（及可选的 `tokendash-headless`）；
+2. **Access App：Worker URL（例如 `hub.example.com`）**：
+   - 策略（OR）：Browser 允许你的邮箱（Web 前端 + 桌面 client 共用此身份）；Service Auth 允许 service token `tokendash-runner`（及可选的 `tokendash-headless`）；
    - **Session duration 设为 7~30 天**（决定 client/web 多久需要重新登录一次）；
-   - **CORS 设置**：允许 `dash.example.com`（Pages 域）和 client webview 的 origin（如 `wails://localhost`），并 Allow credentials，否则前端 fetch 会被浏览器拦截；
-3. **Access App B：`dash.example.com`**（Pages）：Browser 策略，允许你的邮箱；
+   - 如果仅使用同源 Web，不需要额外 CORS；桌面 client 或独立前端调用时，再把对应 origin 加入 `CORS_ORIGINS`；
+3. 将 App 的 AUD tag 与 team 名写入 Worker 变量 `ACCESS_AUD` / `ACCESS_TEAM`；部署按钮会从 `.env.example` 提示这些配置；
 4. 凭证下发：
    - 桌面 client：**无需任何后台操作**，应用内 loopback 登录即可（见第 4 节）；
    - runner：`wrangler secret put CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET`；
    - headless client（可选）：申请一个 service token，`tokendash login --service-token` 录入；
-5. hub 的 `ACCESS_AUD`（App A 的 AUD tag）写入 wrangler 环境变量，用于 JWT 校验；`CREDENTIALS_KEY`（32 字节随机数）用 `wrangler secret put` 配置。
+5. hub 的 `CREDENTIALS_KEY`（32 字节随机数）用 `wrangler secret put` 配置；不要把 `DEV_TOKEN` 配到生产 Worker。
 
 ## 8. 仓库结构
 
@@ -407,7 +407,8 @@ TokenDashboard/
   client/             # 跨平台桌面采集器（Wails + Go）
   cloudflare-hub/     # Workers + D1（含合并部署的内置 runner）
   runner/             # Go 独立额度采集器（kimi/codex，Docker 部署在非 Cloudflare 网络）
-  web/                # Pages 前端
+  web/                # Worker Static Assets 前端
+  wrangler.jsonc      # 一键/手动部署入口
   design/             # 本文档
 ```
 

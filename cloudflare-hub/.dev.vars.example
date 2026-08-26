@@ -1,6 +1,3 @@
+# 仅供从 cloudflare-hub 目录单独运行时使用；仓库根目录开发请复制 ../.dev.vars.example。
 DEV_TOKEN=local-dev-secret
-# 生产不要配 DEV_TOKEN！以下为生产所需：
-ACCESS_TEAM=your-team
-ACCESS_AUD=REPLACE_WITH_ACCESS_APP_AUD
 CREDENTIALS_KEY=REPLACE_WITH_32_BYTE_BASE64
-CORS_ORIGINS=https://dash.example.com

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && cd ../cloudflare-hub && wrangler deploy",
+    "deploy": "cd .. && npm run deploy",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

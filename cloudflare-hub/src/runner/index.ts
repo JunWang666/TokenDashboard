@@ -2,10 +2,18 @@ import type { QuotaRow } from "./types";
 import { adapters, runAdapter } from "./adapters";
 
 export interface Env {
-  HUB_URL: string;
+  HUB_URL?: string;
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
   HUB_DEV_TOKEN?: string;
+}
+
+/** Synthetic origin used when the Worker calls its own API without a public URL. */
+export const INTERNAL_HUB_URL = "https://internal.tokendash";
+
+function hubUrl(env: Env): string {
+  const configured = env.HUB_URL?.trim().replace(/\/+$/, "");
+  return configured || INTERNAL_HUB_URL;
 }
 
 /** 调用 hub 时的鉴权头：本地开发用 Bearer dev token，生产用 Access service token 头 */
@@ -17,14 +25,18 @@ function hubAuthHeaders(env: Env): Record<string, string> {
       "CF-Access-Client-Secret": env.CF_ACCESS_CLIENT_SECRET,
     };
   }
+  // The merged Worker uses localFetch and authenticates with the internal
+  // header. No public HUB_URL means this is the normal one-click setup.
+  if (!env.HUB_URL?.trim()) return {};
   throw new Error("runner: 需要 HUB_DEV_TOKEN 或 CF_ACCESS_CLIENT_ID/SECRET");
 }
 
 /** 一轮采集：拉凭证 → 各适配器（每把 key 独立采集并打 account 标签）→ 上报快照。返回写入行数 */
 export async function collect(env: Env, f: typeof fetch = fetch): Promise<number> {
   const headers = hubAuthHeaders(env);
+  const baseUrl = hubUrl(env);
 
-  const credRes = await f(`${env.HUB_URL}/api/v1/internal/credentials`, { headers });
+  const credRes = await f(`${baseUrl}/api/v1/internal/credentials`, { headers });
   if (!credRes.ok) throw new Error(`hub internal/credentials: HTTP ${credRes.status}`);
   // { provider: [ { name, ...credFields } ] } —— 每个服务商可有多把 key
   const creds = (await credRes.json()) as Record<string, Array<Record<string, unknown> & { name?: string }>>;
@@ -43,7 +55,7 @@ export async function collect(env: Env, f: typeof fetch = fetch): Promise<number
   }
 
   if (rows.length > 0) {
-    const ingestRes = await f(`${env.HUB_URL}/api/v1/ingest/quota`, {
+    const ingestRes = await f(`${baseUrl}/api/v1/ingest/quota`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
       body: JSON.stringify({ rows }),

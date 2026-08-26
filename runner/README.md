@@ -17,7 +17,7 @@ amd64 + arm64）：
 
 ```bash
 docker run -d --name tokendash-runner --restart unless-stopped \
-  -e HUB_URL=https://token.goudaijun.top \
+  -e HUB_URL=https://hub.example.com \
   -e CF_ACCESS_CLIENT_ID=xxx.access \
   -e CF_ACCESS_CLIENT_SECRET=yyy \
   ghcr.io/junwang666/tokendash-runner:latest
@@ -31,7 +31,7 @@ docker run -d --name tokendash-runner --restart unless-stopped \
 ```bash
 docker build -t tokendash-runner ./runner
 docker run -d --name tokendash-runner --restart unless-stopped \
-  -e HUB_URL=https://token.goudaijun.top \
+  -e HUB_URL=https://hub.example.com \
   -e CF_ACCESS_CLIENT_ID=xxx.access \
   -e CF_ACCESS_CLIENT_SECRET=yyy \
   -e PROVIDERS=kimi,codex \
@@ -59,7 +59,7 @@ runner 公网可达（或经隧道/frp 暴露）时，可让 Web 上点「立即
 ```bash
 docker run -d --name tokendash-runner --restart unless-stopped \
   -p 9100:9100 \
-  -e HUB_URL=https://token.goudaijun.top \
+  -e HUB_URL=https://hub.example.com \
   -e CF_ACCESS_CLIENT_ID=xxx.access \
   -e CF_ACCESS_CLIENT_SECRET=yyy \
   -e LISTEN_ADDR=:9100 \
