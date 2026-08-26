@@ -70,12 +70,22 @@ struct QuotaAPIClient: Sendable {
         return try await send(request, as: QuotaCurrentResponse.self)
     }
 
-    func fetchQuotaHistory(from: Date) async throws -> QuotaHistoryResponse {
+    func fetchQuotaHistory(
+        provider: String,
+        metric: String,
+        account: String,
+        from: Date
+    ) async throws -> QuotaHistoryResponse {
         let request = try makeRequest(
             pathComponents: ["api", "v1", "quota", "history"],
             method: "GET",
             timeoutInterval: 20,
-            queryItems: [URLQueryItem(name: "from", value: Self.iso8601String(from: from))]
+            queryItems: [
+                URLQueryItem(name: "provider", value: provider),
+                URLQueryItem(name: "metric", value: metric),
+                URLQueryItem(name: "account", value: account),
+                URLQueryItem(name: "from", value: Self.iso8601String(from: from)),
+            ]
         )
         return try await send(request, as: QuotaHistoryResponse.self)
     }

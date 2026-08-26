@@ -92,7 +92,7 @@ private struct QuotaDashboardView: View {
                 } description: {
                     Text("正在读取额度…")
                 }
-            case .loaded(let rows, let history, let refreshedAt):
+            case .loaded(let rows, let refreshedAt):
                 if rows.isEmpty {
                     ContentUnavailableView(
                         "暂无额度",
@@ -100,7 +100,7 @@ private struct QuotaDashboardView: View {
                         description: Text("Hub 还没有可展示的额度快照。")
                     )
                 } else {
-                    quotaList(rows: rows, history: history, refreshedAt: refreshedAt)
+                    quotaList(rows: rows, refreshedAt: refreshedAt)
                 }
             case .failed(let message):
                 ContentUnavailableView {
@@ -158,22 +158,13 @@ private struct QuotaDashboardView: View {
         }
     }
 
-    private func quotaList(
-        rows: [QuotaSnapshot],
-        history: [QuotaSnapshot],
-        refreshedAt: Date
-    ) -> some View {
+    private func quotaList(rows: [QuotaSnapshot], refreshedAt: Date) -> some View {
         List {
             ForEach(QuotaGroup.group(rows)) { group in
                 Section {
                     ForEach(group.rows) { row in
-                        let metricHistory = history.filter {
-                            $0.provider == row.provider
-                                && $0.account == row.account
-                                && $0.metric == row.metric
-                        }
                         NavigationLink {
-                            QuotaHistoryDetailView(snapshot: row, history: metricHistory)
+                            QuotaHistoryDetailView(snapshot: row, configuration: configuration)
                         } label: {
                             QuotaRowView(snapshot: row)
                         }
@@ -217,14 +208,11 @@ private struct QuotaDashboardView: View {
 
         do {
             let client = QuotaAPIClient(configuration: configuration)
-            let historyStart = Calendar.current.date(byAdding: .day, value: -14, to: Date()) ?? Date()
-            async let currentResponse = client.fetchCurrentQuota()
-            async let historyResponse = client.fetchQuotaHistory(from: historyStart)
-            let (response, history) = try await (currentResponse, historyResponse)
+            let response = try await client.fetchCurrentQuota()
             guard !Task.isCancelled else { return }
             let rows = response.displayRows
             WidgetCache.save(rows)
-            state = .loaded(rows, history.rows, Date())
+            state = .loaded(rows, Date())
         } catch is CancellationError {
             return
         } catch {
@@ -270,9 +258,17 @@ private struct QuotaHistoryChart: View {
     let history: [QuotaSnapshot]
 
     private var samples: [QuotaSnapshot] {
-        history
+        let valid = history
             .filter { $0.capturedDate != nil }
             .sorted { ($0.capturedDate ?? .distantPast) < ($1.capturedDate ?? .distantPast) }
+        let maxPoints = 120
+        guard valid.count > maxPoints else { return valid }
+
+        let lastIndex = valid.count - 1
+        return (0..<maxPoints).map { position in
+            let index = Int((Double(position) * Double(lastIndex) / Double(maxPoints - 1)).rounded())
+            return valid[index]
+        }
     }
 
     var body: some View {
@@ -342,7 +338,9 @@ private struct QuotaHistoryChart: View {
 
 private struct QuotaHistoryDetailView: View {
     let snapshot: QuotaSnapshot
-    let history: [QuotaSnapshot]
+    let configuration: APIConfiguration
+
+    @State private var state: QuotaHistoryLoadState = .loading
 
     var body: some View {
         List {
@@ -351,9 +349,26 @@ private struct QuotaHistoryDetailView: View {
             }
 
             Section("趋势") {
-                QuotaHistoryChart(snapshot: snapshot, history: history)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                switch state {
+                case .loading:
+                    HStack {
+                        Spacer()
+                        ProgressView("正在读取趋势…")
+                        Spacer()
+                    }
                     .listRowSeparator(.hidden)
+                case .loaded(let history):
+                    QuotaHistoryChart(snapshot: snapshot, history: history)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .listRowSeparator(.hidden)
+                case .failed(let message):
+                    ContentUnavailableView(
+                        "无法读取趋势",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(message)
+                    )
+                    .listRowSeparator(.hidden)
+                }
             }
         }
 #if os(macOS)
@@ -365,6 +380,33 @@ private struct QuotaHistoryDetailView: View {
 #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
 #endif
+        .task {
+            await loadHistory()
+        }
+        .refreshable {
+            await loadHistory()
+        }
+    }
+
+    @MainActor
+    private func loadHistory() async {
+        state = .loading
+        do {
+            let from = Calendar.current.date(byAdding: .day, value: -14, to: Date()) ?? Date()
+            let response = try await QuotaAPIClient(configuration: configuration).fetchQuotaHistory(
+                provider: snapshot.provider,
+                metric: snapshot.metric,
+                account: snapshot.account,
+                from: from
+            )
+            guard !Task.isCancelled else { return }
+            state = .loaded(response.rows)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            state = .failed(error.localizedDescription)
+        }
     }
 }
 
@@ -708,7 +750,13 @@ private struct QuotaRowView: View {
 private enum QuotaLoadState {
     case idle
     case loading
-    case loaded([QuotaSnapshot], [QuotaSnapshot], Date)
+    case loaded([QuotaSnapshot], Date)
+    case failed(String)
+}
+
+private enum QuotaHistoryLoadState {
+    case loading
+    case loaded([QuotaSnapshot])
     case failed(String)
 }
 
