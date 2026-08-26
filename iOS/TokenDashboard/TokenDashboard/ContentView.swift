@@ -167,14 +167,16 @@ private struct QuotaDashboardView: View {
             ForEach(QuotaGroup.group(rows)) { group in
                 Section {
                     ForEach(group.rows) { row in
-                        QuotaRowView(
-                            snapshot: row,
-                            history: history.filter {
-                                $0.provider == row.provider
-                                    && $0.account == row.account
-                                    && $0.metric == row.metric
-                            }
-                        )
+                        let metricHistory = history.filter {
+                            $0.provider == row.provider
+                                && $0.account == row.account
+                                && $0.metric == row.metric
+                        }
+                        NavigationLink {
+                            QuotaHistoryDetailView(snapshot: row, history: metricHistory)
+                        } label: {
+                            QuotaRowView(snapshot: row)
+                        }
                     }
                 } header: {
                     VStack(alignment: .leading, spacing: 2) {
@@ -335,6 +337,32 @@ private struct QuotaHistoryChart: View {
             return (value / 1_000).formatted(.number.precision(.fractionLength(0...1))) + "k"
         }
         return value.formatted(.number.precision(.fractionLength(0...1)))
+    }
+}
+
+private struct QuotaHistoryDetailView: View {
+    let snapshot: QuotaSnapshot
+    let history: [QuotaSnapshot]
+
+    var body: some View {
+        List {
+            Section {
+                QuotaRowView(snapshot: snapshot)
+            }
+
+            Section("趋势") {
+                QuotaHistoryChart(snapshot: snapshot, history: history)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .listRowSeparator(.hidden)
+            }
+        }
+#if os(macOS)
+        .listStyle(.inset)
+#else
+        .listStyle(.insetGrouped)
+#endif
+        .navigationTitle(snapshot.metricTitle)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -635,7 +663,6 @@ private enum UsageLoadState {
 
 private struct QuotaRowView: View {
     let snapshot: QuotaSnapshot
-    let history: [QuotaSnapshot]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -671,7 +698,6 @@ private struct QuotaRowView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
 
-            QuotaHistoryChart(snapshot: snapshot, history: history)
         }
         .padding(.vertical, 5)
     }
@@ -687,8 +713,8 @@ private enum QuotaLoadState {
 #Preview("额度") {
     NavigationStack {
         List {
-            QuotaRowView(snapshot: .previewSession, history: [])
-            QuotaRowView(snapshot: .previewBalance, history: [])
+            QuotaRowView(snapshot: .previewSession)
+            QuotaRowView(snapshot: .previewBalance)
         }
         .navigationTitle("额度")
     }
