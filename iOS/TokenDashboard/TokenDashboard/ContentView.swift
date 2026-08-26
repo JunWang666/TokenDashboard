@@ -362,7 +362,9 @@ private struct QuotaHistoryDetailView: View {
         .listStyle(.insetGrouped)
 #endif
         .navigationTitle(snapshot.metricTitle)
+#if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+#endif
     }
 }
 
