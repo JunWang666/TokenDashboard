@@ -70,6 +70,34 @@ struct QuotaAPIClient: Sendable {
         return try await send(request, as: QuotaCurrentResponse.self)
     }
 
+    func fetchQuotaHistory(from: Date) async throws -> QuotaHistoryResponse {
+        let request = try makeRequest(
+            pathComponents: ["api", "v1", "quota", "history"],
+            method: "GET",
+            timeoutInterval: 20,
+            queryItems: [URLQueryItem(name: "from", value: Self.iso8601String(from: from))]
+        )
+        return try await send(request, as: QuotaHistoryResponse.self)
+    }
+
+    func fetchUsageTimeseries(
+        from: Date,
+        interval: UsageInterval,
+        groupBy: UsageGroupBy
+    ) async throws -> UsageTimeseriesResponse {
+        let request = try makeRequest(
+            pathComponents: ["api", "v1", "usage", "timeseries"],
+            method: "GET",
+            timeoutInterval: 20,
+            queryItems: [
+                URLQueryItem(name: "from", value: Self.iso8601String(from: from)),
+                URLQueryItem(name: "interval", value: interval.rawValue),
+                URLQueryItem(name: "group_by", value: groupBy.rawValue),
+            ]
+        )
+        return try await send(request, as: UsageTimeseriesResponse.self)
+    }
+
     func collectNow() async throws -> Int {
         let request = try makeRequest(
             pathComponents: ["api", "v1", "collect"],
@@ -142,7 +170,8 @@ struct QuotaAPIClient: Sendable {
     private func makeRequest(
         pathComponents: [String],
         method: String,
-        timeoutInterval: TimeInterval
+        timeoutInterval: TimeInterval,
+        queryItems: [URLQueryItem] = []
     ) throws -> URLRequest {
         guard let baseURL = configuration.endpointURL else {
             throw QuotaAPIError.invalidHubURL
@@ -151,7 +180,14 @@ struct QuotaAPIClient: Sendable {
         let endpoint = pathComponents.reduce(baseURL) { url, component in
             url.appendingPathComponent(component)
         }
-        var request = URLRequest(url: endpoint)
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+            throw QuotaAPIError.invalidHubURL
+        }
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
+        guard let requestURL = components.url else {
+            throw QuotaAPIError.invalidHubURL
+        }
+        var request = URLRequest(url: requestURL)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = timeoutInterval
@@ -179,6 +215,10 @@ struct QuotaAPIClient: Sendable {
         }
 
         return request
+    }
+
+    private static func iso8601String(from date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
     }
 
     private func send<Response: Decodable>(

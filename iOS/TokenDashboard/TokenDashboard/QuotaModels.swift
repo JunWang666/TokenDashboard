@@ -58,6 +58,66 @@ struct QuotaCurrentResponse: Codable {
     }
 }
 
+struct QuotaHistoryResponse: Codable {
+    let rows: [QuotaSnapshot]
+}
+
+struct UsageTimeseriesResponse: Codable {
+    let interval: String
+    let groupBy: String
+    let from: String?
+    let to: String?
+    let rows: [UsageSnapshot]
+}
+
+struct UsageSnapshot: Codable, Identifiable, Hashable {
+    let time: String
+    let series: String
+    let inputTokens: Double
+    let outputTokens: Double
+    let cacheReadTokens: Double
+    let cacheWriteTokens: Double
+    let costUsd: Double
+    let requests: Double
+
+    var id: String { "\(time)|\(series)" }
+    var totalTokens: Double { inputTokens + outputTokens }
+    var date: Date? { QuotaSnapshot.parseDate(time) }
+}
+
+enum UsageInterval: String, CaseIterable, Identifiable {
+    case hour
+    case day
+
+    var id: Self { self }
+    var title: String { self == .day ? "按天" : "按小时" }
+}
+
+enum UsageGroupBy: String, CaseIterable, Identifiable {
+    case provider
+    case model
+
+    var id: Self { self }
+    var title: String { self == .provider ? "服务商" : "模型" }
+}
+
+enum UsageMetric: String, CaseIterable, Identifiable {
+    case tokens
+    case cost
+
+    var id: Self { self }
+    var title: String { self == .tokens ? "Token" : "花费" }
+}
+
+enum UsageRange: Int, CaseIterable, Identifiable {
+    case week = 7
+    case twoWeeks = 14
+    case month = 30
+
+    var id: Self { self }
+    var title: String { "近 \(rawValue) 天" }
+}
+
 struct QuotaSnapshot: Codable, Identifiable, Hashable {
     let provider: String
     let metric: String
@@ -145,11 +205,13 @@ struct QuotaSnapshot: Codable, Identifiable, Hashable {
         return date.formatted(.dateTime.month().day().hour().minute())
     }
 
-    private var isPercentMetric: Bool {
+    var isPercentMetric: Bool {
         unit == "percent" || metric.hasSuffix("_pct") || metric.contains("_pct_")
     }
 
-    private static func parseDate(_ string: String?) -> Date? {
+    var capturedDate: Date? { Self.parseDate(capturedAt) }
+
+    static func parseDate(_ string: String?) -> Date? {
         guard let string else { return nil }
         let normalized = string
             .trimmingCharacters(in: .whitespacesAndNewlines)
