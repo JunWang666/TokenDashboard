@@ -7,17 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A0000000000000000000000D /* TokenDashboardWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* TokenDashboardWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, CodeSignOnCopy, ); }; };
+		A0000000000000000000000D /* TokenDashboardWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* TokenDashboardWidget.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B0000000000000000000000D /* TokenDashboardAppClip.app in Embed App Clips */ = {isa = PBXBuildFile; fileRef = B00000000000000000000001 /* TokenDashboardAppClip.app */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B00000000000000000000017 /* TokenDashboard/AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000010 /* TokenDashboard/AppSettings.swift */; };
+		B00000000000000000000018 /* TokenDashboard/SharedConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000011 /* TokenDashboard/SharedConfiguration.swift */; };
+		B00000000000000000000019 /* TokenDashboard/QuotaAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000012 /* TokenDashboard/QuotaAPIClient.swift */; };
+		B0000000000000000000001A /* TokenDashboard/QuotaModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000013 /* TokenDashboard/QuotaModels.swift */; };
+		B0000000000000000000001B /* TokenDashboard/CredentialModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000014 /* TokenDashboard/CredentialModels.swift */; };
+		B0000000000000000000001C /* TokenDashboard/StartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000015 /* TokenDashboard/StartView.swift */; };
+		B0000000000000000000001D /* TokenDashboard/AccessLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000016 /* TokenDashboard/AccessLoginView.swift */; };
+		B0000000000000000000001F /* TokenDashboard/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000001E /* TokenDashboard/Assets.xcassets */; };
+		B00000000000000000000021 /* TokenDashboard/HubInvocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000020 /* TokenDashboard/HubInvocation.swift */; };
+		B00000000000000000000022 /* TokenDashboard/SharedDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000023 /* TokenDashboard/SharedDashboardView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		A0000000000000000000000A /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 2936A0AF303AD3FA0071A2E4 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A00000000000000000000003;
-			remoteInfo = TokenDashboardWidget;
-		};
 		2936A0C7303AD3FB0071A2E4 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 2936A0AF303AD3FA0071A2E4 /* Project object */;
@@ -31,6 +35,20 @@
 			proxyType = 1;
 			remoteGlobalIDString = 2936A0B6303AD3FA0071A2E4;
 			remoteInfo = TokenDashboard;
+		};
+		A0000000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2936A0AF303AD3FA0071A2E4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000000000000000000003;
+			remoteInfo = TokenDashboardWidget;
+		};
+		B0000000000000000000000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2936A0AF303AD3FA0071A2E4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B00000000000000000000003;
+			remoteInfo = TokenDashboardAppClip;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -46,13 +64,35 @@
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B0000000000000000000000C /* Embed App Clips */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/AppClips";
+			dstSubfolderSpec = 16;
+			files = (
+				B0000000000000000000000D /* TokenDashboardAppClip.app in Embed App Clips */,
+			);
+			name = "Embed App Clips";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A00000000000000000000001 /* TokenDashboardWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TokenDashboardWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2936A0B7303AD3FA0071A2E4 /* TokenDashboard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TokenDashboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2936A0C6303AD3FB0071A2E4 /* TokenDashboardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TokenDashboardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2936A0D0303AD3FB0071A2E4 /* TokenDashboardUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TokenDashboardUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000001 /* TokenDashboardWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TokenDashboardWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000001 /* TokenDashboardAppClip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TokenDashboardAppClip.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000010 /* TokenDashboard/AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDashboard/AppSettings.swift; sourceTree = "<group>"; };
+		B00000000000000000000011 /* TokenDashboard/SharedConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDashboard/SharedConfiguration.swift; sourceTree = "<group>"; };
+		B00000000000000000000012 /* TokenDashboard/QuotaAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDashboard/QuotaAPIClient.swift; sourceTree = "<group>"; };
+		B00000000000000000000013 /* TokenDashboard/QuotaModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDashboard/QuotaModels.swift; sourceTree = "<group>"; };
+		B00000000000000000000014 /* TokenDashboard/CredentialModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDashboard/CredentialModels.swift; sourceTree = "<group>"; };
+		B00000000000000000000015 /* TokenDashboard/StartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDashboard/StartView.swift; sourceTree = "<group>"; };
+		B00000000000000000000016 /* TokenDashboard/AccessLoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDashboard/AccessLoginView.swift; sourceTree = "<group>"; };
+		B0000000000000000000001E /* TokenDashboard/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = TokenDashboard/Assets.xcassets; sourceTree = "<group>"; };
+		B00000000000000000000020 /* TokenDashboard/HubInvocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDashboard/HubInvocation.swift; sourceTree = "<group>"; };
+		B00000000000000000000023 /* TokenDashboard/SharedDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDashboard/SharedDashboardView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -66,14 +106,6 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A00000000000000000000002 /* TokenDashboardWidget */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				A0000000000000000000000E /* Exceptions for "TokenDashboardWidget" folder in "TokenDashboardWidget" target */,
-			);
-			path = TokenDashboardWidget;
-			sourceTree = "<group>";
-		};
 		2936A0B9303AD3FA0071A2E4 /* TokenDashboard */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = TokenDashboard;
@@ -89,16 +121,22 @@
 			path = TokenDashboardUITests;
 			sourceTree = "<group>";
 		};
+		A00000000000000000000002 /* TokenDashboardWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A0000000000000000000000E /* Exceptions for "TokenDashboardWidget" folder in "TokenDashboardWidget" target */,
+			);
+			path = TokenDashboardWidget;
+			sourceTree = "<group>";
+		};
+		B00000000000000000000002 /* TokenDashboardAppClip */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TokenDashboardAppClip;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		A00000000000000000000005 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		2936A0B4303AD3FA0071A2E4 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -120,6 +158,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A00000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B00000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -127,6 +179,8 @@
 			isa = PBXGroup;
 			children = (
 				2936A0B9303AD3FA0071A2E4 /* TokenDashboard */,
+				B00000000000000000000002 /* TokenDashboardAppClip */,
+				B0000000000000000000000F /* Shared App Clip Sources */,
 				A00000000000000000000002 /* TokenDashboardWidget */,
 				2936A0C9303AD3FB0071A2E4 /* TokenDashboardTests */,
 				2936A0D3303AD3FB0071A2E4 /* TokenDashboardUITests */,
@@ -138,6 +192,7 @@
 			isa = PBXGroup;
 			children = (
 				2936A0B7303AD3FA0071A2E4 /* TokenDashboard.app */,
+				B00000000000000000000001 /* TokenDashboardAppClip.app */,
 				A00000000000000000000001 /* TokenDashboardWidget.appex */,
 				2936A0C6303AD3FB0071A2E4 /* TokenDashboardTests.xctest */,
 				2936A0D0303AD3FB0071A2E4 /* TokenDashboardUITests.xctest */,
@@ -145,31 +200,26 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		B0000000000000000000000F /* Shared App Clip Sources */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000010 /* TokenDashboard/AppSettings.swift */,
+				B00000000000000000000011 /* TokenDashboard/SharedConfiguration.swift */,
+				B00000000000000000000012 /* TokenDashboard/QuotaAPIClient.swift */,
+				B00000000000000000000013 /* TokenDashboard/QuotaModels.swift */,
+				B00000000000000000000014 /* TokenDashboard/CredentialModels.swift */,
+				B00000000000000000000015 /* TokenDashboard/StartView.swift */,
+				B00000000000000000000016 /* TokenDashboard/AccessLoginView.swift */,
+				B0000000000000000000001E /* TokenDashboard/Assets.xcassets */,
+				B00000000000000000000020 /* TokenDashboard/HubInvocation.swift */,
+				B00000000000000000000023 /* TokenDashboard/SharedDashboardView.swift */,
+			);
+			name = "Shared App Clip Sources";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A00000000000000000000003 /* TokenDashboardWidget */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A00000000000000000000007 /* Build configuration list for PBXNativeTarget "TokenDashboardWidget" */;
-			buildPhases = (
-				A00000000000000000000004 /* Sources */,
-				A00000000000000000000005 /* Frameworks */,
-				A00000000000000000000006 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				A00000000000000000000002 /* TokenDashboardWidget */,
-			);
-			name = TokenDashboardWidget;
-			packageProductDependencies = (
-			);
-			productName = TokenDashboardWidget;
-			productReference = A00000000000000000000001 /* TokenDashboardWidget.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 		2936A0B6303AD3FA0071A2E4 /* TokenDashboard */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 2936A0DA303AD3FB0071A2E4 /* Build configuration list for PBXNativeTarget "TokenDashboard" */;
@@ -178,11 +228,13 @@
 				2936A0B4303AD3FA0071A2E4 /* Frameworks */,
 				2936A0B5303AD3FA0071A2E4 /* Resources */,
 				A0000000000000000000000C /* Embed App Extensions */,
+				B0000000000000000000000C /* Embed App Clips */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				A0000000000000000000000B /* PBXTargetDependency */,
+				B0000000000000000000000B /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				2936A0B9303AD3FA0071A2E4 /* TokenDashboard */,
@@ -240,6 +292,50 @@
 			productReference = 2936A0D0303AD3FB0071A2E4 /* TokenDashboardUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		A00000000000000000000003 /* TokenDashboardWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000007 /* Build configuration list for PBXNativeTarget "TokenDashboardWidget" */;
+			buildPhases = (
+				A00000000000000000000004 /* Sources */,
+				A00000000000000000000005 /* Frameworks */,
+				A00000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A00000000000000000000002 /* TokenDashboardWidget */,
+			);
+			name = TokenDashboardWidget;
+			packageProductDependencies = (
+			);
+			productName = TokenDashboardWidget;
+			productReference = A00000000000000000000001 /* TokenDashboardWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		B00000000000000000000003 /* TokenDashboardAppClip */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B00000000000000000000007 /* Build configuration list for PBXNativeTarget "TokenDashboardAppClip" */;
+			buildPhases = (
+				B00000000000000000000004 /* Sources */,
+				B00000000000000000000005 /* Frameworks */,
+				B00000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B00000000000000000000002 /* TokenDashboardAppClip */,
+			);
+			name = TokenDashboardAppClip;
+			packageProductDependencies = (
+			);
+			productName = TokenDashboardAppClip;
+			productReference = B00000000000000000000001 /* TokenDashboardAppClip.app */;
+			productType = "com.apple.product-type.application.on-demand-install-capable";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -250,9 +346,6 @@
 				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
-					A00000000000000000000003 = {
-						CreatedOnToolsVersion = 26.3;
-					};
 					2936A0B6303AD3FA0071A2E4 = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -263,6 +356,12 @@
 					2936A0CF303AD3FB0071A2E4 = {
 						CreatedOnToolsVersion = 26.3;
 						TestTargetID = 2936A0B6303AD3FA0071A2E4;
+					};
+					A00000000000000000000003 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					B00000000000000000000003 = {
+						CreatedOnToolsVersion = 26.3;
 					};
 				};
 			};
@@ -281,6 +380,7 @@
 			projectRoot = "";
 			targets = (
 				2936A0B6303AD3FA0071A2E4 /* TokenDashboard */,
+				B00000000000000000000003 /* TokenDashboardAppClip */,
 				A00000000000000000000003 /* TokenDashboardWidget */,
 				2936A0C5303AD3FB0071A2E4 /* TokenDashboardTests */,
 				2936A0CF303AD3FB0071A2E4 /* TokenDashboardUITests */,
@@ -289,13 +389,6 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A00000000000000000000006 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		2936A0B5303AD3FA0071A2E4 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -317,16 +410,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXResourcesBuildPhase section */
-
-/* Begin PBXSourcesBuildPhase section */
-		A00000000000000000000004 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
+		A00000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B00000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B0000000000000000000001F /* TokenDashboard/Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
 		2936A0B3303AD3FA0071A2E4 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -348,14 +449,32 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A00000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B00000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00000000000000000000017 /* TokenDashboard/AppSettings.swift in Sources */,
+				B00000000000000000000018 /* TokenDashboard/SharedConfiguration.swift in Sources */,
+				B00000000000000000000019 /* TokenDashboard/QuotaAPIClient.swift in Sources */,
+				B0000000000000000000001A /* TokenDashboard/QuotaModels.swift in Sources */,
+				B0000000000000000000001B /* TokenDashboard/CredentialModels.swift in Sources */,
+				B0000000000000000000001C /* TokenDashboard/StartView.swift in Sources */,
+				B0000000000000000000001D /* TokenDashboard/AccessLoginView.swift in Sources */,
+				B00000000000000000000021 /* TokenDashboard/HubInvocation.swift in Sources */,
+				B00000000000000000000022 /* TokenDashboard/SharedDashboardView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		A0000000000000000000000B /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A00000000000000000000003 /* TokenDashboardWidget */;
-			targetProxy = A0000000000000000000000A /* PBXContainerItemProxy */;
-		};
 		2936A0C8303AD3FB0071A2E4 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 2936A0B6303AD3FA0071A2E4 /* TokenDashboard */;
@@ -366,79 +485,20 @@
 			target = 2936A0B6303AD3FA0071A2E4 /* TokenDashboard */;
 			targetProxy = 2936A0D1303AD3FB0071A2E4 /* PBXContainerItemProxy */;
 		};
+		A0000000000000000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A00000000000000000000003 /* TokenDashboardWidget */;
+			targetProxy = A0000000000000000000000A /* PBXContainerItemProxy */;
+		};
+		B0000000000000000000000B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = B00000000000000000000003 /* TokenDashboardAppClip */;
+			targetProxy = B0000000000000000000000A /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		A00000000000000000000008 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = TokenDashboardWidget/TokenDashboardWidget.entitlements;
-				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "TokenDashboardWidget/TokenDashboardWidget-macOS.entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
-				DEVELOPMENT_TEAM = 4RN53WGN2C;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = TokenDashboardWidget/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gouzuang.TokenDashboard.Widget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		A00000000000000000000009 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = TokenDashboardWidget/TokenDashboardWidget.entitlements;
-				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "TokenDashboardWidget/TokenDashboardWidget-macOS.entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
-				DEVELOPMENT_TEAM = 4RN53WGN2C;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = TokenDashboardWidget/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 15.6;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gouzuang.TokenDashboard.Widget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = auto;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 		2936A0D8303AD3FB0071A2E4 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -753,18 +813,163 @@
 			};
 			name = Release;
 		};
+		A00000000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = TokenDashboardWidget/TokenDashboardWidget.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "TokenDashboardWidget/TokenDashboardWidget-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 9;
+				DEVELOPMENT_TEAM = 4RN53WGN2C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TokenDashboardWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gouzuang.TokenDashboard.Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A00000000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = TokenDashboardWidget/TokenDashboardWidget.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "TokenDashboardWidget/TokenDashboardWidget-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 9;
+				DEVELOPMENT_TEAM = 4RN53WGN2C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TokenDashboardWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gouzuang.TokenDashboard.Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B00000000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TokenDashboardAppClip/TokenDashboardAppClip.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 9;
+				DEVELOPMENT_TEAM = 4RN53WGN2C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "额度速览";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gouzuang.TokenDashboard.Clip;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B00000000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = TokenDashboardAppClip/TokenDashboardAppClip.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 9;
+				DEVELOPMENT_TEAM = 4RN53WGN2C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "额度速览";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gouzuang.TokenDashboard.Clip;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A00000000000000000000007 /* Build configuration list for PBXNativeTarget "TokenDashboardWidget" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A00000000000000000000008 /* Debug */,
-				A00000000000000000000009 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		2936A0B2303AD3FA0071A2E4 /* Build configuration list for PBXProject "TokenDashboard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -797,6 +1002,24 @@
 			buildConfigurations = (
 				2936A0E1303AD3FB0071A2E4 /* Debug */,
 				2936A0E2303AD3FB0071A2E4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000000000000000000007 /* Build configuration list for PBXNativeTarget "TokenDashboardWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000000000000000000008 /* Debug */,
+				A00000000000000000000009 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B00000000000000000000007 /* Build configuration list for PBXNativeTarget "TokenDashboardAppClip" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B00000000000000000000008 /* Debug */,
+				B00000000000000000000009 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

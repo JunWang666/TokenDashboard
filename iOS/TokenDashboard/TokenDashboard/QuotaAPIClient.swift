@@ -208,6 +208,7 @@ struct QuotaAPIClient: Sendable {
                 throw QuotaAPIError.missingWebLogin
             }
             request.setValue(configuration.accessCookieHeader, forHTTPHeaderField: "Cookie")
+            request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
         case .cloudflareAccess:
             guard !configuration.accessClientID.isEmpty,
                   !configuration.accessClientSecret.isEmpty else {
@@ -235,10 +236,47 @@ struct QuotaAPIClient: Sendable {
         _ request: URLRequest,
         as responseType: Response.Type
     ) async throws -> Response {
+        var authenticatedRequest = request
+        if configuration.authMode == .webAccess,
+           let requestURL = request.url,
+           let currentCookie = await WebAccessCookieStore.cookieHeader(for: requestURL) {
+            authenticatedRequest.setValue(currentCookie, forHTTPHeaderField: "Cookie")
+            await AppSettings.persistRefreshedWebAccessCookie(currentCookie)
+        }
+
+        var exchange = try await perform(authenticatedRequest)
+        if configuration.authMode == .webAccess,
+           Self.shouldRefreshWebAccess(
+               statusCode: exchange.response.statusCode,
+               contentType: exchange.response.value(forHTTPHeaderField: "Content-Type")
+           ),
+           let requestURL = authenticatedRequest.url,
+           let refreshedCookie = await WebAccessCookieStore.refreshCookieHeader(
+               for: requestURL,
+               replacing: authenticatedRequest.value(forHTTPHeaderField: "Cookie")
+           ) {
+            await AppSettings.persistRefreshedWebAccessCookie(refreshedCookie)
+            authenticatedRequest.setValue(refreshedCookie, forHTTPHeaderField: "Cookie")
+            exchange = try await perform(authenticatedRequest)
+        }
+
+        return try decode(exchange, as: responseType)
+    }
+
+    private func perform(_ request: URLRequest) async throws -> HTTPExchange {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw QuotaAPIError.invalidResponse
         }
+        return HTTPExchange(data: data, response: httpResponse)
+    }
+
+    private func decode<Response: Decodable>(
+        _ exchange: HTTPExchange,
+        as responseType: Response.Type
+    ) throws -> Response {
+        let data = exchange.data
+        let httpResponse = exchange.response
         guard (200..<300).contains(httpResponse.statusCode) else {
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
                 throw QuotaAPIError.unauthorized
@@ -259,6 +297,19 @@ struct QuotaAPIClient: Sendable {
             throw QuotaAPIError.decoding(error)
         }
     }
+
+    static func shouldRefreshWebAccess(statusCode: Int, contentType: String?) -> Bool {
+        if statusCode == 401 || statusCode == 403 {
+            return true
+        }
+        return (200..<300).contains(statusCode)
+            && contentType?.lowercased().contains("json") != true
+    }
+}
+
+private struct HTTPExchange {
+    let data: Data
+    let response: HTTPURLResponse
 }
 
 private struct CollectResponse: Decodable, Sendable {

@@ -87,6 +87,12 @@ final class AppSettings {
         KeychainStore.write(cookieHeader, key: Key.accessCookieHeader)
     }
 
+    static func persistRefreshedWebAccessCookie(_ cookieHeader: String) {
+        guard !cookieHeader.isEmpty,
+              KeychainStore.read(Key.accessCookieHeader) != cookieHeader else { return }
+        KeychainStore.write(cookieHeader, key: Key.accessCookieHeader)
+    }
+
     func clearWebAccessCookie() {
         accessCookieHeader = ""
         revision += 1

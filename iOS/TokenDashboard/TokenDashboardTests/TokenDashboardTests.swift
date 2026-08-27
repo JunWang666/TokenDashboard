@@ -117,6 +117,61 @@ struct TokenDashboardTests {
         #expect(!invalidEndpoint.isComplete)
     }
 
+    @Test @MainActor func webAccessCookieHeaderUsesCurrentMostSpecificCookies() throws {
+        let url = try #require(URL(string: "https://token.example.com/api/v1/quota/current"))
+        let now = Date()
+        let cookies = [
+            cookie(name: "CF_Authorization", value: "parent", domain: ".example.com"),
+            cookie(name: "CF_Authorization", value: "current", domain: "token.example.com"),
+            cookie(name: "CF_Binding", value: "binding", domain: "token.example.com"),
+            expiringCookie(
+                name: "CF_Authorization",
+                value: "expired",
+                domain: "token.example.com",
+                expires: now.addingTimeInterval(-60)
+            ),
+            cookie(name: "CF_Authorization", value: "foreign", domain: "other.example.com"),
+        ]
+
+        let header = WebAccessCookieStore.cookieHeader(from: cookies, for: url, now: now)
+
+        #expect(header == "CF_Authorization=current; CF_Binding=binding")
+    }
+
+    @Test @MainActor func webAccessRefreshDetectionCoversAccessResponsesOnly() {
+        #expect(QuotaAPIClient.shouldRefreshWebAccess(statusCode: 401, contentType: "text/html"))
+        #expect(QuotaAPIClient.shouldRefreshWebAccess(statusCode: 403, contentType: "application/json"))
+        #expect(QuotaAPIClient.shouldRefreshWebAccess(statusCode: 200, contentType: "text/html"))
+        #expect(!QuotaAPIClient.shouldRefreshWebAccess(statusCode: 200, contentType: "application/json"))
+        #expect(!QuotaAPIClient.shouldRefreshWebAccess(statusCode: 500, contentType: "text/html"))
+    }
+
+    @Test @MainActor func invocationUsesCallingOriginAndAuthenticationHint() throws {
+        let invocation = HubInvocation(
+            url: try #require(URL(string: "https://token.example.com:8443/appclip?auth=none"))
+        )
+
+        #expect(invocation.hubURL == "https://token.example.com:8443")
+        #expect(invocation.authenticationMode == AuthenticationMode.none)
+    }
+
+    @Test @MainActor func invocationPrefersExplicitHubURL() throws {
+        let invocation = HubInvocation(
+            url: try #require(URL(string: "https://clip.example.com/open?hub=https%3A%2F%2Ftoken.example.com%2F&auth=web"))
+        )
+
+        #expect(invocation.hubURL == "https://token.example.com")
+        #expect(invocation.authenticationMode == .webAccess)
+    }
+
+    @Test @MainActor func defaultAppleAppClipURLDoesNotBecomeHub() throws {
+        let invocation = HubInvocation(
+            url: try #require(URL(string: "https://appclip.apple.com/id?p=com.gouzuang.TokenDashboard.Clip"))
+        )
+
+        #expect(invocation.hubURL == nil)
+    }
+
     private func cookie(name: String, value: String, domain: String) -> HTTPCookie {
         HTTPCookie(properties: [
             .name: name,
@@ -124,6 +179,22 @@ struct TokenDashboardTests {
             .domain: domain,
             .path: "/",
             .secure: "TRUE",
+        ])!
+    }
+
+    private func expiringCookie(
+        name: String,
+        value: String,
+        domain: String,
+        expires: Date
+    ) -> HTTPCookie {
+        HTTPCookie(properties: [
+            .name: name,
+            .value: value,
+            .domain: domain,
+            .path: "/",
+            .secure: "TRUE",
+            .expires: expires,
         ])!
     }
 }
