@@ -113,7 +113,9 @@ function claimsToPrincipal(claims: AccessClaims, env: Env): Principal | null {
   }
   const cn = claims.common_name;
   if (!cn) return null;
-  const runnerNames = (env.RUNNER_SERVICE_TOKENS ?? "tokendash-runner")
+  // Access service-token JWT 的 common_name 是 Client ID，而不是控制台里的令牌名称。
+  // 多个 ID 以逗号分隔，保持显式白名单，避免任意 service token 获得 runner 权限。
+  const runnerNames = (env.RUNNER_SERVICE_TOKENS ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
