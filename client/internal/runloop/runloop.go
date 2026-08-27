@@ -24,8 +24,12 @@ type Runner struct {
 	Logf     func(format string, args ...any)
 
 	// 测试缝隙：非空时覆盖采集器默认路径
-	ClaudeRoot string
-	CursorDB   string
+	ClaudeRoot   string
+	CursorDB     string
+	CodexRoot    string
+	GeminiRoot   string
+	OpenCodeRoot string
+	CopilotRoot  string
 }
 
 func New(cfg *config.Config, authStore *auth.Store) (*Runner, error) {
@@ -50,7 +54,14 @@ func New(cfg *config.Config, authStore *auth.Store) (*Runner, error) {
 func (r *Runner) Once() error {
 	agg := aggregate.New()
 	cp := state.LoadCheckpoint(state.CheckpointPath(r.StateDir))
-	enabled := map[string]bool{"claude_code": r.Cfg.Sources.ClaudeCode, "cursor": r.Cfg.Sources.Cursor}
+	enabled := map[string]bool{
+		"claude_code": r.Cfg.Sources.ClaudeCode,
+		"cursor":      r.Cfg.Sources.Cursor,
+		"codex":       r.Cfg.Sources.Codex,
+		"gemini":      r.Cfg.Sources.Gemini,
+		"opencode":    r.Cfg.Sources.OpenCode,
+		"copilot":     r.Cfg.Sources.Copilot,
+	}
 	for _, c := range collector.Registry(enabled) {
 		switch col := c.(type) {
 		case *collector.ClaudeCode:
@@ -60,6 +71,22 @@ func (r *Runner) Once() error {
 		case *collector.Cursor:
 			if r.CursorDB != "" {
 				col.DBPath = r.CursorDB
+			}
+		case *collector.Codex:
+			if r.CodexRoot != "" {
+				col.Root = r.CodexRoot
+			}
+		case *collector.Gemini:
+			if r.GeminiRoot != "" {
+				col.Root = r.GeminiRoot
+			}
+		case *collector.OpenCode:
+			if r.OpenCodeRoot != "" {
+				col.Root = r.OpenCodeRoot
+			}
+		case *collector.Copilot:
+			if r.CopilotRoot != "" {
+				col.Root = r.CopilotRoot
 			}
 		}
 		if err := c.Collect(cp, agg); err != nil {
@@ -157,6 +184,14 @@ func (r *Runner) Status() (map[string]any, error) {
 		"hub_url":          r.Cfg.HubURL,
 		"interval":         r.Cfg.Interval,
 		"state_dir":        r.StateDir,
+		"sources": map[string]bool{
+			"claude_code": r.Cfg.Sources.ClaudeCode,
+			"cursor":      r.Cfg.Sources.Cursor,
+			"codex":       r.Cfg.Sources.Codex,
+			"gemini":      r.Cfg.Sources.Gemini,
+			"opencode":    r.Cfg.Sources.OpenCode,
+			"copilot":     r.Cfg.Sources.Copilot,
+		},
 	}, nil
 }
 

@@ -48,6 +48,10 @@ func TestOnceEndToEnd(t *testing.T) {
 	cfg.DeviceName = "e2e-dev"
 	cfg.Sources.ClaudeCode = true
 	cfg.Sources.Cursor = false
+	cfg.Sources.Codex = false
+	cfg.Sources.Gemini = false
+	cfg.Sources.OpenCode = false
+	cfg.Sources.Copilot = false
 
 	r, err := New(cfg, auth.NewStore(t.TempDir()))
 	if err != nil {

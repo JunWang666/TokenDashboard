@@ -19,8 +19,9 @@ export default function TodayChart({ ts }: { ts: TimeseriesResponse }) {
 
   const seriesNames = useMemo(() => {
     const seen = new Set(ts.rows.map((r) => r.series));
-    // 固定顺序，与图例一致
-    return PROVIDERS.filter((p) => seen.has(p.id)).map((p) => p.id);
+    // 已知服务商固定顺序；新采集器（如 Gemini/OpenCode）也要显示。
+    const order = new Map(PROVIDERS.map((p, i) => [p.id, i]));
+    return [...seen].sort((a, b) => (order.get(a) ?? Number.MAX_SAFE_INTEGER) - (order.get(b) ?? Number.MAX_SAFE_INTEGER));
   }, [ts]);
 
   const data = useMemo(() => {

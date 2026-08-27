@@ -14,6 +14,7 @@ type FileState struct {
 	Inode  uint64 `json:"inode"`
 	Size   int64  `json:"size"`
 	Offset int64  `json:"offset"`
+	Model  string `json:"model,omitempty"`
 }
 
 // Checkpoint 记录每个数据源每个文件的读取进度。

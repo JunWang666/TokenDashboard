@@ -1,6 +1,6 @@
 # client（tokendash）
 
-跨平台桌面采集器：Go 核心（Wails + React 前端）+ headless CLI。解析本地工具日志（Claude Code、Cursor），聚合后批量上报 hub。
+跨平台桌面采集器：Go 核心（Wails + React 前端）+ headless CLI。解析本地工具日志（Claude Code、Codex CLI、Gemini CLI、OpenCode、GitHub Copilot CLI、Cursor），聚合后批量上报 hub。
 
 ## 构建
 
@@ -41,6 +41,10 @@ access_aud  = "a1b2c3..."  # hub Access App 的 AUD
 [sources]
 claude_code = true
 cursor      = false
+codex       = true
+gemini      = true
+opencode    = true
+copilot     = true
 ```
 
 凭证一律不落配置文件：Access 用户 token / service token 存系统钥匙串
@@ -52,6 +56,20 @@ cursor      = false
 |--------|------|------|
 | claude-code | `~/.claude/projects/**/*.jsonl` | assistant 消息的 `message.usage`；按 inode+offset 增量，追加写入只读新尾部；价目表估算 cost |
 | cursor | `~/.cursor/state.vscdb` 的 `ai_usage` 表 | 只读 sqlite；格式变动风险高，失败静默跳过 |
+| codex-cli | `$CODEX_HOME/sessions/**/*.jsonl`（回退 `~/.codex`，另含 `archived_sessions`） | 只取 `event_msg/token_count` 的 `last_token_usage`，按 inode+offset 增量 |
+| gemini-cli | `$GEMINI_CLI_HOME/tmp/*/chats/*.json`（回退 `~/.gemini`） | 读取 session 的 `messages[].tokens`；按消息数组下标增量 |
+| opencode | `$XDG_DATA_HOME/opencode/opencode.db`（回退 `~/.local/share/opencode`）或 `storage/message/*.json` | 支持 `message` / `session_message` SQLite 表和旧版 JSON；记录 provider、model、缓存与 OpenCode 已报告花费 |
+| copilot-cli | `$COPILOT_OTEL_FILE_EXPORTER_PATH` 或 `~/.copilot/otel/*.jsonl` | 只统计 OpenTelemetry `chat` span；需要先开启 Copilot CLI 的 file exporter |
+
+Codex、Gemini、OpenCode 和 Copilot 的默认开关已开启；未安装对应工具时会自动跳过。采集器只读取本地文件/数据库，不上传原始会话内容，只上报小时聚合后的 token、请求数和可得花费。
+
+Copilot CLI 需要先启用文件导出（路径也可以改成你自己的文件）：
+
+```bash
+export COPILOT_OTEL_ENABLED=true
+export COPILOT_OTEL_EXPORTER_TYPE=file
+export COPILOT_OTEL_FILE_EXPORTER_PATH="$HOME/.copilot/otel/copilot.jsonl"
+```
 
 ## 架构（Go 核心，与 UI 解耦）
 

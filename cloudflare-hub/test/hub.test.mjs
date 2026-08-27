@@ -362,3 +362,37 @@ test("新增套餐服务商: minimax / zai / anyrouter 凭证与额度均可入�
   await get("/api/v1/credentials/zai", { method: "DELETE", headers: user.headers });
   await get("/api/v1/credentials/anyrouter", { method: "DELETE", headers: user.headers });
 });
+
+test("本地采集器 provider: gemini / opencode 用量可入库", async () => {
+  const result = await post(
+    "/api/v1/ingest/usage",
+    {
+      device_id: "local-collector-test",
+      rows: [
+        {
+          provider: "gemini",
+          source: "gemini-cli",
+          model: "gemini-2.5-pro",
+          bucket_hour: "2026-08-27T01:00:00Z",
+          input_tokens: 100,
+          output_tokens: 20,
+          requests: 1,
+        },
+        {
+          provider: "opencode",
+          source: "opencode",
+          model: "custom-model",
+          bucket_hour: "2026-08-27T01:00:00Z",
+          input_tokens: 80,
+          output_tokens: 10,
+          requests: 1,
+        },
+      ],
+    },
+    client,
+  );
+  assert.equal(result.status, 200);
+  const summary = await (await get("/api/v1/summary", user)).json();
+  assert.equal(summary.rows.find((r) => r.key === "gemini").input_tokens, 100);
+  assert.equal(summary.rows.find((r) => r.key === "opencode").input_tokens, 80);
+});

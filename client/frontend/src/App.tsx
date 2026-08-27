@@ -13,6 +13,7 @@ interface Status {
   device: string;
   hub_url: string;
   interval: string;
+  sources?: Record<string, boolean>;
 }
 
 export default function App() {
@@ -152,15 +153,49 @@ function Settings({ status, onSaved }: { status: Status | null; onSaved: () => v
   const [aud, setAud] = useState("");
   const [claudeOn, setClaudeOn] = useState(true);
   const [cursorOn, setCursorOn] = useState(false);
+  const [codexOn, setCodexOn] = useState(true);
+  const [geminiOn, setGeminiOn] = useState(true);
+  const [openCodeOn, setOpenCodeOn] = useState(true);
+  const [copilotOn, setCopilotOn] = useState(true);
   const [credProvider, setCredProvider] = useState("claude");
   const [credValue, setCredValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (initialized || !status) return;
+    setHub(status.hub_url ?? "");
+    setDevice(status.device ?? "");
+    setInterval(status.interval ?? "5m");
+    const sources = status.sources ?? {};
+    if ("claude_code" in sources) setClaudeOn(Boolean(sources.claude_code));
+    if ("cursor" in sources) setCursorOn(Boolean(sources.cursor));
+    if ("codex" in sources) setCodexOn(Boolean(sources.codex));
+    if ("gemini" in sources) setGeminiOn(Boolean(sources.gemini));
+    if ("opencode" in sources) setOpenCodeOn(Boolean(sources.opencode));
+    if ("copilot" in sources) setCopilotOn(Boolean(sources.copilot));
+    setInitialized(true);
+  }, [initialized, status]);
 
   const save = async () => {
     setSaving(true);
     try {
-      await api.SaveConfig({ hub_url: hub, device_name: device, interval, access_team: team, access_aud: aud, sources: { claude_code: claudeOn, cursor: cursorOn } });
+      await api.SaveConfig({
+        hub_url: hub,
+        device_name: device,
+        interval,
+        access_team: team,
+        access_aud: aud,
+        sources: {
+          claude_code: claudeOn,
+          cursor: cursorOn,
+          codex: codexOn,
+          gemini: geminiOn,
+          opencode: openCodeOn,
+          copilot: copilotOn,
+        },
+      });
       setMsg("已保存");
       onSaved();
     } catch (e) {
@@ -212,12 +247,24 @@ function Settings({ status, onSaved }: { status: Status | null; onSaved: () => v
             <input className={input} value={aud} onChange={(e) => setAud(e.target.value)} placeholder="hub 应用 AUD" />
           </div>
         </div>
-        <div className="flex gap-4 pt-1">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-1 text-sm">
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={claudeOn} onChange={(e) => setClaudeOn(e.target.checked)} /> Claude Code
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={cursorOn} onChange={(e) => setCursorOn(e.target.checked)} /> Cursor
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={codexOn} onChange={(e) => setCodexOn(e.target.checked)} /> Codex CLI
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={geminiOn} onChange={(e) => setGeminiOn(e.target.checked)} /> Gemini CLI
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={openCodeOn} onChange={(e) => setOpenCodeOn(e.target.checked)} /> OpenCode
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={copilotOn} onChange={(e) => setCopilotOn(e.target.checked)} /> Copilot CLI
           </label>
         </div>
         <button onClick={save} disabled={saving} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-slate-950 disabled:opacity-40">

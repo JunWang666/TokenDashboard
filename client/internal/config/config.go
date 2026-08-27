@@ -12,6 +12,10 @@ import (
 type Sources struct {
 	ClaudeCode bool `toml:"claude_code"`
 	Cursor     bool `toml:"cursor"`
+	Codex      bool `toml:"codex"`
+	Gemini     bool `toml:"gemini"`
+	OpenCode   bool `toml:"opencode"`
+	Copilot    bool `toml:"copilot"`
 }
 
 type Config struct {
@@ -29,7 +33,7 @@ func Default() *Config {
 		HubURL:     "",
 		DeviceName: host,
 		Interval:   "5m",
-		Sources:    Sources{ClaudeCode: true, Cursor: false},
+		Sources:    Sources{ClaudeCode: true, Cursor: false, Codex: true, Gemini: true, OpenCode: true, Copilot: true},
 	}
 }
 

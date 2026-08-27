@@ -12,7 +12,12 @@ export const PROVIDERS: { id: string; name: string; color: string }[] = [
   { id: "cursor", name: "Cursor", color: "#e8b339" },
 ];
 
-export const providerMeta = (id: string) => PROVIDERS.find((p) => p.id === id) ?? { id, name: id, color: "#94a3b8" };
+const USAGE_ONLY_PROVIDERS: Record<string, { id: string; name: string; color: string }> = {
+  gemini: { id: "gemini", name: "Gemini CLI", color: "#4285f4" },
+  opencode: { id: "opencode", name: "OpenCode", color: "#f59e0b" },
+};
+
+export const providerMeta = (id: string) => PROVIDERS.find((p) => p.id === id) ?? USAGE_ONLY_PROVIDERS[id] ?? { id, name: id, color: "#94a3b8" };
 
 export const providerColor = (id: string) => providerMeta(id).color;
 

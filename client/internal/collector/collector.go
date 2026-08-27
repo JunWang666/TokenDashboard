@@ -27,5 +27,17 @@ func Registry(enabled map[string]bool) []Collector {
 	if enabled["cursor"] {
 		out = append(out, &Cursor{})
 	}
+	if enabled["codex"] {
+		out = append(out, &Codex{})
+	}
+	if enabled["gemini"] {
+		out = append(out, &Gemini{})
+	}
+	if enabled["opencode"] {
+		out = append(out, &OpenCode{})
+	}
+	if enabled["copilot"] {
+		out = append(out, &Copilot{})
+	}
 	return out
 }

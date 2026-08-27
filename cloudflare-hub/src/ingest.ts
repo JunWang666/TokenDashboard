@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import type { Env } from "./index";
 
-const PROVIDERS = ["claude", "openai", "copilot", "glm", "deepseek", "cursor", "codex", "kimi", "minimax", "zai", "anyrouter"] as const;
+const PROVIDERS = ["claude", "openai", "copilot", "glm", "deepseek", "cursor", "codex", "kimi", "minimax", "zai", "anyrouter", "gemini", "opencode"] as const;
 export const PROVIDER_SET: ReadonlySet<string> = new Set(PROVIDERS);
 
 export const MAX_BATCH = 1000;
