@@ -119,6 +119,18 @@ enum UsageRange: Int, CaseIterable, Identifiable {
 }
 
 struct QuotaSnapshot: Codable, Identifiable, Hashable {
+    private static let fractionalDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let standardDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
     let provider: String
     let metric: String
     let account: String
@@ -220,13 +232,8 @@ struct QuotaSnapshot: Codable, Identifiable, Hashable {
             || normalized.range(of: #"[+-]\d{2}:?\d{2}$"#, options: .regularExpression) != nil
         let value = hasTimeZone ? normalized : normalized + "Z"
 
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: value) { return date }
-
-        let standard = ISO8601DateFormatter()
-        standard.formatOptions = [.withInternetDateTime]
-        return standard.date(from: value)
+        if let date = fractionalDateFormatter.date(from: value) { return date }
+        return standardDateFormatter.date(from: value)
     }
 }
 

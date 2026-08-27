@@ -253,79 +253,143 @@ private struct CollectionNotice: Identifiable {
     let message: String
 }
 
+private struct QuotaTrendPoint: Hashable {
+    let date: Date
+    let value: Double
+}
+
 private struct QuotaHistoryChart: View {
     let snapshot: QuotaSnapshot
-    let history: [QuotaSnapshot]
-
-    private var samples: [QuotaSnapshot] {
-        let valid = history
-            .filter { $0.capturedDate != nil }
-            .sorted { ($0.capturedDate ?? .distantPast) < ($1.capturedDate ?? .distantPast) }
-        let maxPoints = 120
-        guard valid.count > maxPoints else { return valid }
-
-        let lastIndex = valid.count - 1
-        return (0..<maxPoints).map { position in
-            let index = Int((Double(position) * Double(lastIndex) / Double(maxPoints - 1)).rounded())
-            return valid[index]
-        }
-    }
+    let points: [QuotaTrendPoint]
 
     var body: some View {
-        if samples.count >= 2 {
-            VStack(alignment: .leading, spacing: 4) {
+        if points.count >= 2 {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("近 14 天趋势")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
-                Chart {
-                    ForEach(Array(samples.enumerated()), id: \.offset) { index, sample in
-                        LineMark(
-                            x: .value("时间", sample.capturedDate ?? .distantPast),
-                            y: .value(snapshot.metricTitle, sample.value)
-                        )
-                        .foregroundStyle(snapshot.tint)
-                        .lineStyle(.init(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        .interpolationMethod(.catmullRom)
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .trailing) {
+                        Text(chartValue(valueRange.upperBound))
+                        Spacer()
+                        Text(chartValue(valueRange.lowerBound))
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(height: 112)
 
-                        if index == samples.indices.last {
-                            PointMark(
-                                x: .value("时间", sample.capturedDate ?? .distantPast),
-                                y: .value(snapshot.metricTitle, sample.value)
+                    Canvas { context, size in
+                        let dates = dateRange
+                        let values = valueRange
+
+                        for position in [0.0, 0.5, 1.0] {
+                            var gridLine = Path()
+                            let y = size.height * position
+                            gridLine.move(to: CGPoint(x: 0, y: y))
+                            gridLine.addLine(to: CGPoint(x: size.width, y: y))
+                            context.stroke(
+                                gridLine,
+                                with: .color(.secondary.opacity(0.2)),
+                                lineWidth: 0.5
                             )
-                            .foregroundStyle(snapshot.tint)
+                        }
+
+                        var line = Path()
+                        for (index, point) in points.enumerated() {
+                            let location = location(
+                                for: point,
+                                in: size,
+                                dates: dates,
+                                values: values
+                            )
+                            if index == points.startIndex {
+                                line.move(to: location)
+                            } else {
+                                line.addLine(to: location)
+                            }
+                        }
+                        context.stroke(
+                            line,
+                            with: .color(snapshot.tint),
+                            style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+                        )
+
+                        if let last = points.last {
+                            let location = location(
+                                for: last,
+                                in: size,
+                                dates: dates,
+                                values: values
+                            )
+                            let marker = Path(
+                                ellipseIn: CGRect(
+                                    x: location.x - 3,
+                                    y: location.y - 3,
+                                    width: 6,
+                                    height: 6
+                                )
+                            )
+                            context.fill(marker, with: .color(snapshot.tint))
                         }
                     }
+                    .frame(height: 112)
+                    .accessibilityLabel("\(snapshot.metricTitle)近 14 天趋势")
                 }
-                .chartYScale(domain: .automatic(includesZero: true))
-                .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 3)) { _ in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        AxisValueLabel(format: .dateTime.month(.defaultDigits).day().hour())
-                            .font(.caption2)
+
+                HStack {
+                    if let first = points.first {
+                        Text(first.date.formatted(.dateTime.month().day()))
+                    }
+                    Spacer()
+                    if let last = points.last {
+                        Text(last.date.formatted(.dateTime.month().day().hour()))
                     }
                 }
-                .chartYAxis {
-                    AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        AxisValueLabel {
-                            Text(chartValue(value.as(Double.self) ?? 0, snapshot: snapshot))
-                                .font(.caption2)
-                        }
-                    }
-                }
-                .frame(height: 115)
-                .accessibilityLabel("\(snapshot.metricTitle)近 14 天趋势")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
             .padding(.top, 2)
-        } else if !history.isEmpty {
+        } else if !points.isEmpty {
             Text("正在积累趋势数据")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
     }
 
-    private func chartValue(_ value: Double, snapshot: QuotaSnapshot) -> String {
+    private var valueRange: ClosedRange<Double> {
+        let values = points.map(\.value)
+        let minimum = min(values.min() ?? 0, 0)
+        let maximum = max(values.max() ?? 0, 0)
+        if minimum == maximum {
+            return minimum...(minimum + 1)
+        }
+        return minimum...maximum
+    }
+
+    private var dateRange: ClosedRange<TimeInterval> {
+        let lower = points.first?.date.timeIntervalSinceReferenceDate ?? 0
+        let upper = points.last?.date.timeIntervalSinceReferenceDate ?? lower
+        return lower...(upper > lower ? upper : lower + 1)
+    }
+
+    private func location(
+        for point: QuotaTrendPoint,
+        in size: CGSize,
+        dates: ClosedRange<TimeInterval>,
+        values: ClosedRange<Double>
+    ) -> CGPoint {
+        let x = (point.date.timeIntervalSinceReferenceDate - dates.lowerBound)
+            / (dates.upperBound - dates.lowerBound)
+        let y = (point.value - values.lowerBound)
+            / (values.upperBound - values.lowerBound)
+        return CGPoint(
+            x: min(max(x, 0), 1) * size.width,
+            y: (1 - min(max(y, 0), 1)) * size.height
+        )
+    }
+
+    private func chartValue(_ value: Double) -> String {
         if snapshot.isPercentMetric {
             return value.formatted(.number.precision(.fractionLength(0))) + "%"
         }
@@ -358,7 +422,7 @@ private struct QuotaHistoryDetailView: View {
                     }
                     .listRowSeparator(.hidden)
                 case .loaded(let history):
-                    QuotaHistoryChart(snapshot: snapshot, history: history)
+                    QuotaHistoryChart(snapshot: snapshot, points: history)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .listRowSeparator(.hidden)
                 case .failed(let message):
@@ -400,12 +464,33 @@ private struct QuotaHistoryDetailView: View {
                 from: from
             )
             guard !Task.isCancelled else { return }
-            state = .loaded(response.rows)
+            state = .loaded(Self.trendPoints(from: response.rows))
         } catch is CancellationError {
             return
         } catch {
             guard !Task.isCancelled else { return }
             state = .failed(error.localizedDescription)
+        }
+    }
+
+    private static func trendPoints(from rows: [QuotaSnapshot]) -> [QuotaTrendPoint] {
+        let maximumPointCount = 80
+        let sampledRows: [QuotaSnapshot]
+        if rows.count > maximumPointCount {
+            let lastIndex = rows.count - 1
+            sampledRows = (0..<maximumPointCount).map { position in
+                let index = Int(
+                    (Double(position) * Double(lastIndex) / Double(maximumPointCount - 1)).rounded()
+                )
+                return rows[index]
+            }
+        } else {
+            sampledRows = rows
+        }
+
+        // /quota/history guarantees captured_at ascending, so sample before date parsing.
+        return sampledRows.compactMap { snapshot in
+            snapshot.capturedDate.map { QuotaTrendPoint(date: $0, value: snapshot.value) }
         }
     }
 }
@@ -756,7 +841,7 @@ private enum QuotaLoadState {
 
 private enum QuotaHistoryLoadState {
     case loading
-    case loaded([QuotaSnapshot])
+    case loaded([QuotaTrendPoint])
     case failed(String)
 }
 
