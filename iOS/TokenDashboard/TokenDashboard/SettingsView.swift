@@ -16,6 +16,9 @@ struct SettingsView: View {
     @State private var accessClientSecret: String
     @State private var developerToken: String
     @State private var isShowingWebLogin = false
+#if os(iOS)
+    @State private var pushEnabled: Bool
+#endif
 
     init(settings: AppSettings) {
         self.settings = settings
@@ -24,6 +27,9 @@ struct SettingsView: View {
         _accessClientID = State(initialValue: settings.accessClientID)
         _accessClientSecret = State(initialValue: settings.accessClientSecret)
         _developerToken = State(initialValue: settings.developerToken)
+#if os(iOS)
+        _pushEnabled = State(initialValue: AppDelegate.isEnabled)
+#endif
     }
 
     var body: some View {
@@ -100,6 +106,26 @@ struct SettingsView: View {
                         Text("仅适用于未启用鉴权的测试服务。")
                     }
                 }
+
+#if os(iOS)
+                Section {
+                    Toggle("启用推送通知", isOn: $pushEnabled)
+                        .onChange(of: pushEnabled) { _, newValue in
+                            if newValue {
+                                // 授权被拒绝时把开关拨回关闭
+                                AppDelegate.registerForPush { granted in
+                                    pushEnabled = granted
+                                }
+                            } else {
+                                AppDelegate.setEnabled(false)
+                            }
+                        }
+                } header: {
+                    Text("推送通知")
+                } footer: {
+                    Text("开启后，Hub 会在额度变动时向本设备推送提醒；通知授权被系统拒绝时开关会自动保持关闭。")
+                }
+#endif
 
                 Section {
                     Label("额度页面只读取数据；“立即采集”和“凭证管理”会按你的操作写入 Hub。App 不提供删除凭证功能。", systemImage: "lock.shield")

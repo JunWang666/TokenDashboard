@@ -5,6 +5,9 @@ import * as ingest from "./ingest";
 import * as query from "./query";
 import * as credentials from "./credentials";
 import * as settings from "./settings";
+import * as pushSubscriptions from "./pushSubscriptions";
+import * as notify from "./notify";
+import { runAlertSweep } from "./alerts";
 import { collect, INTERNAL_HUB_URL } from "./runner/index";
 
 export interface Env {
@@ -22,6 +25,14 @@ export interface Env {
   CF_ACCESS_CLIENT_SECRET?: string;
   // Workers VPC：经隧道触达私网 runner 的 webhook
   RUNNER_VPC?: Fetcher;
+  // 额度告警推送：web push（VAPID）与 iOS（APNs），未配置则对应平台跳过
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
+  APNS_KEY_P8?: string;
+  APNS_KEY_ID?: string;
+  APNS_TEAM_ID?: string;
+  APNS_USE_SANDBOX?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -65,6 +76,15 @@ api.get("/internal/credentials", requireRole("runner"), credentials.internalList
 
 api.get("/collect-webhook", requireRole("user", "client"), settings.get);
 api.put("/collect-webhook", requireRole("user"), settings.put);
+
+api.get("/push/vapid-public-key", requireRole("user", "client"), pushSubscriptions.vapidKey);
+api.post("/push/subscriptions", requireRole("user", "client"), pushSubscriptions.subscribe);
+api.delete("/push/subscriptions", requireRole("user", "client"), pushSubscriptions.unsubscribe);
+api.get("/alerts/settings", requireRole("user", "client"), pushSubscriptions.getAlertSettings);
+api.put("/alerts/settings", requireRole("user"), pushSubscriptions.putAlertSettings);
+
+api.get("/notify-channels", requireRole("user", "client"), notify.getChannels);
+api.put("/notify-channels", requireRole("user"), notify.putChannels);
 
 /** 主动触发一轮额度采集（登录用户/客户端可用）；配置了 webhook 时同步通知独立 runner */
 api.post("/collect", requireRole("user", "client"), async (c) => {
@@ -123,6 +143,12 @@ export default {
           console.log(`tokendash: collected ${n} quota rows`);
         } catch (e) {
           console.error("tokendash collect:", e);
+        }
+        // 采集后扫一轮额度告警（失败只 log，不影响主流程）
+        try {
+          await runAlertSweep(env);
+        } catch (e) {
+          console.error("tokendash alert sweep:", e);
         }
       })(),
     );

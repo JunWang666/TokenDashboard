@@ -90,3 +90,19 @@ export interface DevicesResponse {
 export interface CredentialsResponse {
   rows: CredentialRow[];
 }
+
+export interface AlertSettings {
+  enabled: boolean;
+  lowThresholdPct: number;
+  resetSoonMinutes: number;
+}
+
+export interface NotifyChannels {
+  feishu: { url: string | null; hasSecret: boolean };
+  bark: { server: string | null; hasKey: boolean };
+}
+
+export interface NotifyChannelsPatch {
+  feishu?: { url: string; secret?: string };
+  bark?: { server: string; key?: string };
+}

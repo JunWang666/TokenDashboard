@@ -1,3 +1,13 @@
 # 仅供从 cloudflare-hub 目录单独运行时使用；仓库根目录开发请复制 ../.dev.vars.example。
 DEV_TOKEN=local-dev-secret
 CREDENTIALS_KEY=REPLACE_WITH_32_BYTE_BASE64
+
+# 额度告警推送（可选）。web push：node scripts/gen-vapid.mjs 生成密钥对
+# VAPID_PUBLIC_KEY=
+# VAPID_PRIVATE_KEY=
+# VAPID_SUBJECT=mailto:you@example.com
+# iOS APNs：Apple Developer → Keys → APNs 下载的 .p8 全文（含 BEGIN/END 行）
+# APNS_KEY_P8=
+# APNS_KEY_ID=
+# APNS_TEAM_ID=
+# APNS_USE_SANDBOX=1

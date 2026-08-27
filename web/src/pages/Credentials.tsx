@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import AsyncData from "../components/AsyncData";
+import PushNotificationCard from "../components/PushNotificationCard";
+import NotifyChannelsCard from "../components/NotifyChannelsCard";
 import { scrapeError, CopyableError } from "../components/QuotaBar";
 import { PROVIDERS, fmtTime, providerMeta } from "../format";
 import type { CredentialRow, CredentialsResponse, QuotaCurrentResponse } from "../types";
@@ -99,6 +101,8 @@ export default function Credentials() {
       </AsyncData>
 
       <WebhookCard />
+      <PushNotificationCard />
+      <NotifyChannelsCard />
     </div>
   );
 }

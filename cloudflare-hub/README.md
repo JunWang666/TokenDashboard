@@ -37,7 +37,39 @@ npm run dev
 | GET/PUT/PATCH/DELETE | `/api/v1/credentials/:provider` | user/client | 加密凭证管理 |
 | GET | `/api/v1/internal/credentials` | runner | runner 内部凭证接口 |
 | POST | `/api/v1/collect` | user/client | 立即采集 |
+| GET/POST/DELETE | `/api/v1/push/...` | user/client | 推送订阅管理 |
+| GET/PUT | `/api/v1/alerts/settings` | GET user/client，PUT user | 告警开关与阈值 |
+| GET/PUT | `/api/v1/notify-channels` | GET user/client，PUT user | 第三方通知渠道（飞书/Bark） |
 | GET | `/healthz` | 公开 | 健康检查 |
+
+## 额度推送通知
+
+cron 每 15 分钟采集后会扫一轮额度告警（`quota_low` 越过阈值 / `reset_soon` 即将刷新 / `reset_done` 已刷新），按 `alert_events.dedupe_key` 去重后推送到 `push_subscriptions` 里的订阅。开关与阈值见 `GET/PUT /api/v1/alerts/settings`。
+
+secrets / vars：
+
+- web push（VAPID）：`node scripts/gen-vapid.mjs` 生成密钥对；`VAPID_PUBLIC_KEY` 可作普通 var，`VAPID_PRIVATE_KEY` 用 `npx wrangler secret put VAPID_PRIVATE_KEY` 写入；`VAPID_SUBJECT` 填 `mailto:` 联系方式。
+- iOS（APNs）：Apple Developer → Certificates, Identifiers & Profiles → Keys 新建启用 APNs 的 key，下载 `.p8`（只下一次）。`APNS_KEY_P8` 填 .p8 全文（含 BEGIN/END 行）、`APNS_KEY_ID` 填 key 的 10 位 ID、`APNS_TEAM_ID` 填 Team ID，均用 `wrangler secret put`；调试期 `APNS_USE_SANDBOX=1`。
+
+web 端订阅流程：`GET /api/v1/push/vapid-public-key` 取公钥 → 浏览器 `pushManager.subscribe({ applicationServerKey })` → 把 `subscription.endpoint` 与 `keys.p256dh/auth` POST 到 `/api/v1/push/subscriptions`（platform=web）。iOS 端把 APNs device token 以 platform=ios 注册到同一接口。
+
+### 第三方通知渠道（飞书 / Bark）
+
+除浏览器推送和 APNs 外，同一批告警事件还会发到 `GET/PUT /api/v1/notify-channels` 配置的渠道，配置存 settings 表（密钥用 CREDENTIALS_KEY 加密）：
+
+```bash
+# 飞书自定义机器人（secret 为机器人的签名校验密钥，可选）
+curl -X PUT $HUB/api/v1/notify-channels -H ... \
+  -d '{"feishu": {"url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx", "secret": "可选"}}'
+
+# Bark（server 默认官方 https://api.day.app，可填自建；key 为设备 key）
+curl -X PUT $HUB/api/v1/notify-channels -H ... \
+  -d '{"bark": {"server": "https://api.day.app", "key": "你的设备key"}}'
+
+# 清除某渠道：对应字段传空串，如 {"feishu": {"url": ""}}
+```
+
+secret/key 只在 PUT 时提交，GET 只回传 `hasSecret`/`hasKey`。url/server 不变时可省略密钥字段，旧密钥保留。
 
 ## 测试与部署
 

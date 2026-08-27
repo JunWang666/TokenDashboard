@@ -16,7 +16,7 @@
     {
       "binding": "DB",
       "database_name": "tokendash",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "844c898f-9b50-4957-8e0b-49c60a175493",
       "migrations_dir": "cloudflare-hub/migrations"
     }
   ],

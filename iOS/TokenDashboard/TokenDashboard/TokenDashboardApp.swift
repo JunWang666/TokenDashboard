@@ -7,6 +7,10 @@ import SwiftUI
 
 @main
 struct TokenDashboardApp: App {
+#if os(iOS)
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+#endif
+
     var body: some Scene {
         WindowGroup {
             ContentView()

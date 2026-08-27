@@ -130,6 +130,38 @@ struct QuotaAPIClient: Sendable {
         return try await send(request, as: CredentialListResponse.self)
     }
 
+    func pushSubscribe(token: String) async throws {
+        var request = try makeRequest(
+            pathComponents: ["api", "v1", "push", "subscriptions"],
+            method: "POST",
+            timeoutInterval: 20
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            PushSubscribeRequest(platform: "ios", endpoint: token)
+        )
+        let response = try await send(request, as: PushSubscriptionResponse.self)
+        guard response.ok else {
+            throw QuotaAPIError.pushSubscriptionFailed(response.error ?? "服务器未返回错误原因。")
+        }
+    }
+
+    func pushUnsubscribe(token: String) async throws {
+        var request = try makeRequest(
+            pathComponents: ["api", "v1", "push", "subscriptions"],
+            method: "DELETE",
+            timeoutInterval: 20
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            PushUnsubscribeRequest(endpoint: token)
+        )
+        let response = try await send(request, as: PushSubscriptionResponse.self)
+        guard response.ok else {
+            throw QuotaAPIError.pushSubscriptionFailed(response.error ?? "服务器未返回错误原因。")
+        }
+    }
+
     func createCredential(
         provider: String,
         name: String,
@@ -323,6 +355,20 @@ private struct CredentialWriteRequest: Encodable, Sendable {
     let payload: [String: String]
 }
 
+private struct PushSubscribeRequest: Encodable, Sendable {
+    let platform: String
+    let endpoint: String
+}
+
+private struct PushUnsubscribeRequest: Encodable, Sendable {
+    let endpoint: String
+}
+
+private struct PushSubscriptionResponse: Decodable, Sendable {
+    let ok: Bool
+    let error: String?
+}
+
 enum QuotaAPIError: LocalizedError {
     case invalidHubURL
     case missingWebLogin
@@ -331,6 +377,7 @@ enum QuotaAPIError: LocalizedError {
     case unauthorized
     case unexpectedContent
     case collectionFailed(String)
+    case pushSubscriptionFailed(String)
     case server(status: Int, detail: String)
     case decoding(Error)
 
@@ -350,6 +397,8 @@ enum QuotaAPIError: LocalizedError {
             "服务器返回的不是 JSON，可能被重定向到了 Cloudflare 登录页。"
         case .collectionFailed(let message):
             "采集失败：\(message)"
+        case .pushSubscriptionFailed(let message):
+            "推送订阅失败：\(message)"
         case .server(let status, let detail):
             "请求失败（\(status)）：\(detail.prefix(200))"
         case .decoding(let error):

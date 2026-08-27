@@ -1,7 +1,10 @@
 import type {
+  AlertSettings,
   BootstrapResponse,
   CredentialsResponse,
   DevicesResponse,
+  NotifyChannels,
+  NotifyChannelsPatch,
   QuotaCurrentResponse,
   QuotaHistoryResponse,
   SummaryResponse,
@@ -74,4 +77,18 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(secret ? { url, secret } : { url }),
     }),
+  getVapidPublicKey: () => req<{ key: string | null }>(`/api/v1/push/vapid-public-key`),
+  pushSubscribe: (endpoint: string, keys: { p256dh: string; auth: string }) =>
+    req<{ ok: boolean }>(`/api/v1/push/subscriptions`, {
+      method: "POST",
+      body: JSON.stringify({ platform: "web", endpoint, keys }),
+    }),
+  pushUnsubscribe: (endpoint: string) =>
+    req<{ ok: boolean }>(`/api/v1/push/subscriptions`, { method: "DELETE", body: JSON.stringify({ endpoint }) }),
+  getAlertSettings: () => req<AlertSettings>(`/api/v1/alerts/settings`),
+  putAlertSettings: (patch: Partial<AlertSettings>) =>
+    req<AlertSettings>(`/api/v1/alerts/settings`, { method: "PUT", body: JSON.stringify(patch) }),
+  getNotifyChannels: () => req<NotifyChannels>(`/api/v1/notify-channels`),
+  putNotifyChannels: (patch: NotifyChannelsPatch) =>
+    req<NotifyChannels>(`/api/v1/notify-channels`, { method: "PUT", body: JSON.stringify(patch) }),
 };

@@ -13,6 +13,7 @@
     "rotate-key": "node scripts/rotate-key.mjs"
   },
   "dependencies": {
+    "@pushforge/builder": "^2.0.5",
     "hono": "^4.6.14"
   },
   "devDependencies": {
