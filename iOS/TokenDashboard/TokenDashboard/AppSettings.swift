@@ -104,14 +104,10 @@ private enum KeychainStore {
     private static let service = "com.gouzuang.TokenDashboard"
 
     static func read(_ key: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecAttrAccessGroup as String: SharedConfiguration.keychainAccessGroup,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
+        var query = baseAttributes(account: key)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
         var result: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
               let data = result as? Data else { return nil }
@@ -119,12 +115,7 @@ private enum KeychainStore {
     }
 
     static func write(_ value: String, key: String) {
-        let identity: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecAttrAccessGroup as String: SharedConfiguration.keychainAccessGroup,
-        ]
+        let identity = baseAttributes(account: key)
 
         if value.isEmpty {
             SecItemDelete(identity as CFDictionary)
@@ -141,5 +132,17 @@ private enum KeychainStore {
             attributes.forEach { item[$0.key] = $0.value }
             SecItemAdd(item as CFDictionary, nil)
         }
+    }
+
+    private static func baseAttributes(account: String) -> [String: Any] {
+        var attributes: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        if let accessGroup = SharedConfiguration.keychainAccessGroup {
+            attributes[kSecAttrAccessGroup as String] = accessGroup
+        }
+        return attributes
     }
 }

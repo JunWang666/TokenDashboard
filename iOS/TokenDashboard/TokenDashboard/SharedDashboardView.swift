@@ -66,6 +66,9 @@ struct QuotaDashboardView: View {
     let onShowSettings: () -> Void
     let onRowsLoaded: ([QuotaSnapshot]) -> Void
 
+#if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+#endif
     @State private var state: QuotaLoadState = .idle
     @State private var isCollecting = false
     @State private var collectionNotice: CollectionNotice?
@@ -176,39 +179,81 @@ struct QuotaDashboardView: View {
     }
 
     private func quotaList(rows: [QuotaSnapshot], refreshedAt: Date) -> some View {
-        List {
-            ForEach(QuotaGroup.group(rows)) { group in
-                Section {
-                    ForEach(group.rows) { row in
-                        quotaRow(row)
+        Group {
+            if usesWideLayout {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("\(rows.count) 项额度", systemImage: "rectangle.grid.2x2")
+                            Spacer()
+                            Text("更新于 ") + Text(refreshedAt, format: .dateTime.hour().minute().second())
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 300, maximum: 520), spacing: 16, alignment: .top)],
+                            alignment: .leading,
+                            spacing: 16
+                        ) {
+                            ForEach(QuotaGroup.group(rows)) { group in
+                                QuotaGroupCard(group: group, configuration: configuration)
+                            }
+                        }
                     }
-                } header: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(group.providerTitle)
-                        if !group.account.isEmpty {
-                            Text(group.account)
-                                .font(.caption2)
-                                .textCase(nil)
+                    .padding(20)
+                    .frame(maxWidth: 1400)
+                    .frame(maxWidth: .infinity)
+                }
+                .refreshable {
+                    await load(showLoading: false)
+                }
+            } else {
+                List {
+                    ForEach(QuotaGroup.group(rows)) { group in
+                        Section {
+                            ForEach(group.rows) { row in
+                                quotaRow(row)
+                            }
+                        } header: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(group.providerTitle)
+                                if !group.account.isEmpty {
+                                    Text(group.account)
+                                        .font(.caption2)
+                                        .textCase(nil)
+                                }
+                            }
+                        }
+                    }
+
+                    Section {
+                        LabeledContent("数据更新时间") {
+                            Text(refreshedAt, format: .dateTime.hour().minute().second())
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
-            }
-
-            Section {
-                LabeledContent("数据更新时间") {
-                    Text(refreshedAt, format: .dateTime.hour().minute().second())
-                        .foregroundStyle(.secondary)
+#if os(macOS)
+                .listStyle(.inset)
+#else
+                .listStyle(.insetGrouped)
+#endif
+                .refreshable {
+                    await load(showLoading: false)
                 }
             }
         }
+    }
+
+    private var usesWideLayout: Bool {
 #if os(macOS)
-        .listStyle(.inset)
+        true
+#elseif os(iOS)
+        horizontalSizeClass == .regular
 #else
-        .listStyle(.insetGrouped)
+        true
 #endif
-        .refreshable {
-            await load(showLoading: false)
-        }
     }
 
     @ViewBuilder
@@ -268,6 +313,59 @@ struct QuotaDashboardView: View {
     }
 }
 
+private struct QuotaGroupCard: View {
+    let group: QuotaGroup
+    let configuration: APIConfiguration
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(group.providerTitle)
+                    .font(.headline)
+                Spacer(minLength: 12)
+                if !group.account.isEmpty {
+                    Text(group.account)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+
+            Divider()
+
+            ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
+                NavigationLink {
+                    QuotaHistoryDetailView(snapshot: row, configuration: configuration)
+                } label: {
+                    HStack(spacing: 12) {
+                        QuotaRowView(snapshot: row)
+                        Image(systemName: "chevron.forward")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if index < group.rows.count - 1 {
+                    Divider()
+                        .padding(.leading, 16)
+                }
+            }
+        }
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(.secondary.opacity(0.2), lineWidth: 0.5)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
 struct QuotaRowView: View {
     let snapshot: QuotaSnapshot
 
@@ -318,6 +416,10 @@ private struct QuotaHistoryChart: View {
     let snapshot: QuotaSnapshot
     let points: [QuotaTrendPoint]
 
+    private let chartHeight: CGFloat = 168
+    private let horizontalPlotInset: CGFloat = 5
+    private let verticalPlotInset: CGFloat = 8
+
     var body: some View {
         if points.count >= 2 {
             VStack(alignment: .leading, spacing: 8) {
@@ -333,17 +435,23 @@ private struct QuotaHistoryChart: View {
                     }
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .frame(height: 112)
+                    .frame(height: chartHeight)
 
                     Canvas { context, size in
                         let dates = dateRange
                         let values = valueRange
+                        let plotBounds = CGRect(
+                            x: horizontalPlotInset,
+                            y: verticalPlotInset,
+                            width: max(size.width - horizontalPlotInset * 2, 0),
+                            height: max(size.height - verticalPlotInset * 2, 0)
+                        )
 
                         for position in [0.0, 0.5, 1.0] {
                             var gridLine = Path()
-                            let y = size.height * position
-                            gridLine.move(to: CGPoint(x: 0, y: y))
-                            gridLine.addLine(to: CGPoint(x: size.width, y: y))
+                            let y = plotBounds.minY + plotBounds.height * position
+                            gridLine.move(to: CGPoint(x: plotBounds.minX, y: y))
+                            gridLine.addLine(to: CGPoint(x: plotBounds.maxX, y: y))
                             context.stroke(
                                 gridLine,
                                 with: .color(.secondary.opacity(0.2)),
@@ -355,7 +463,7 @@ private struct QuotaHistoryChart: View {
                         for (index, point) in points.enumerated() {
                             let location = location(
                                 for: point,
-                                in: size,
+                                in: plotBounds,
                                 dates: dates,
                                 values: values
                             )
@@ -374,7 +482,7 @@ private struct QuotaHistoryChart: View {
                         if let last = points.last {
                             let location = location(
                                 for: last,
-                                in: size,
+                                in: plotBounds,
                                 dates: dates,
                                 values: values
                             )
@@ -389,7 +497,7 @@ private struct QuotaHistoryChart: View {
                             context.fill(marker, with: .color(snapshot.tint))
                         }
                     }
-                    .frame(height: 112)
+                    .frame(height: chartHeight)
                     .accessibilityLabel("\(snapshot.metricTitle)近 14 天趋势")
                 }
 
@@ -431,7 +539,7 @@ private struct QuotaHistoryChart: View {
 
     private func location(
         for point: QuotaTrendPoint,
-        in size: CGSize,
+        in bounds: CGRect,
         dates: ClosedRange<TimeInterval>,
         values: ClosedRange<Double>
     ) -> CGPoint {
@@ -440,8 +548,8 @@ private struct QuotaHistoryChart: View {
         let y = (point.value - values.lowerBound)
             / (values.upperBound - values.lowerBound)
         return CGPoint(
-            x: min(max(x, 0), 1) * size.width,
-            y: (1 - min(max(y, 0), 1)) * size.height
+            x: bounds.minX + min(max(x, 0), 1) * bounds.width,
+            y: bounds.maxY - min(max(y, 0), 1) * bounds.height
         )
     }
 

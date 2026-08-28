@@ -2,6 +2,7 @@ node_modules/
 .tools/
 .wrangler/
 dist/
+build/
 .dev.vars
 .env
 *.log

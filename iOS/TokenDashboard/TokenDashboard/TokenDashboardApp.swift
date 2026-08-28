@@ -16,7 +16,7 @@ struct TokenDashboardApp: App {
             ContentView()
         }
 #if os(macOS)
-        .defaultSize(width: 760, height: 680)
+        .defaultSize(width: 1120, height: 760)
 #endif
     }
 }

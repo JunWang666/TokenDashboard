@@ -31,32 +31,114 @@ struct ContentView: View {
     }
 
     private func dashboard(settings: AppSettings) -> some View {
-        TabView {
-            NavigationStack {
+        AdaptiveDashboardView(
+            settings: settings,
+            onShowCredentials: { presentedSheet = .credentials },
+            onShowSettings: { presentedSheet = .settings }
+        )
+    }
+}
+
+private struct AdaptiveDashboardView: View {
+    let settings: AppSettings
+    let onShowCredentials: () -> Void
+    let onShowSettings: () -> Void
+
+#if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+#endif
+    @State private var selection: DashboardDestination? = .quota
+
+    var body: some View {
+        if usesSidebar {
+            NavigationSplitView {
+                List(selection: $selection) {
+                    Section("TokenDashboard") {
+                        ForEach(DashboardDestination.allCases) { destination in
+                            Label(destination.title, systemImage: destination.systemImage)
+                                .tag(destination)
+                        }
+                    }
+
+                    Section("管理") {
+                        Button("凭证管理", systemImage: "key.horizontal", action: onShowCredentials)
+                        Button("连接设置", systemImage: "gearshape", action: onShowSettings)
+                    }
+                }
+                .navigationTitle("概览")
+                .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 260)
+            } detail: {
+                dashboardNavigation(for: selection ?? .quota)
+            }
+            .navigationSplitViewStyle(.balanced)
+        } else {
+            TabView {
+                dashboardNavigation(for: .quota)
+                    .tabItem {
+                        Label("额度", systemImage: "gauge.with.dots.needle.50percent")
+                    }
+
+                dashboardNavigation(for: .usage)
+                    .tabItem {
+                        Label("用量", systemImage: "chart.bar.xaxis")
+                    }
+            }
+        }
+    }
+
+    private var usesSidebar: Bool {
+#if os(macOS)
+        true
+#elseif os(iOS)
+        horizontalSizeClass == .regular
+#else
+        true
+#endif
+    }
+
+    @ViewBuilder
+    private func dashboardNavigation(for destination: DashboardDestination) -> some View {
+        NavigationStack {
+            switch destination {
+            case .quota:
                 QuotaDashboardView(
                     configuration: settings.configuration,
                     reloadID: settings.revision,
                     mode: .fullApp,
-                    onShowCredentials: { presentedSheet = .credentials },
-                    onShowSettings: { presentedSheet = .settings },
+                    onShowCredentials: onShowCredentials,
+                    onShowSettings: onShowSettings,
                     onRowsLoaded: WidgetCache.save
                 )
                 .navigationTitle("额度")
-            }
-            .tabItem {
-                Label("额度", systemImage: "gauge.with.dots.needle.50percent")
-            }
-
-            NavigationStack {
+            case .usage:
                 UsageDashboardView(
                     configuration: settings.configuration,
                     reloadID: settings.revision
                 )
                 .navigationTitle("用量")
             }
-            .tabItem {
-                Label("用量", systemImage: "chart.bar.xaxis")
-            }
+        }
+        .id(destination)
+    }
+}
+
+private enum DashboardDestination: String, CaseIterable, Identifiable {
+    case quota
+    case usage
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .quota: "额度"
+        case .usage: "用量"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .quota: "gauge.with.dots.needle.50percent"
+        case .usage: "chart.bar.xaxis"
         }
     }
 }
@@ -72,6 +154,9 @@ private struct UsageDashboardView: View {
     let configuration: APIConfiguration
     let reloadID: Int
 
+#if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+#endif
     @State private var state: UsageLoadState = .idle
     @State private var range: UsageRange = .twoWeeks
     @State private var interval: UsageInterval = .day
@@ -129,33 +214,67 @@ private struct UsageDashboardView: View {
     }
 
     private var usageFilters: some View {
-        VStack(spacing: 8) {
-            Picker("范围", selection: $range) {
-                ForEach(UsageRange.allCases) { range in
-                    Text(range.title).tag(range)
-                }
-            }
-            .pickerStyle(.segmented)
+        Group {
+            if usesWideLayout {
+                HStack(spacing: 16) {
+                    Picker("范围", selection: $range) {
+                        ForEach(UsageRange.allCases) { range in
+                            Text(range.title).tag(range)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 380)
 
-            HStack(spacing: 12) {
-                Picker("间隔", selection: $interval) {
-                    ForEach(UsageInterval.allCases) { interval in
-                        Text(interval.title).tag(interval)
-                    }
+                    Divider()
+                        .frame(height: 22)
+
+                    compactFilterPickers
+                    Spacer(minLength: 0)
                 }
-                Picker("分组", selection: $groupBy) {
-                    ForEach(UsageGroupBy.allCases) { groupBy in
-                        Text(groupBy.title).tag(groupBy)
+            } else {
+                VStack(spacing: 8) {
+                    Picker("范围", selection: $range) {
+                        ForEach(UsageRange.allCases) { range in
+                            Text(range.title).tag(range)
+                        }
                     }
-                }
-                Picker("指标", selection: $metric) {
-                    ForEach(UsageMetric.allCases) { metric in
-                        Text(metric.title).tag(metric)
-                    }
+                    .pickerStyle(.segmented)
+
+                    compactFilterPickers
                 }
             }
-            .font(.caption)
         }
+    }
+
+    private var compactFilterPickers: some View {
+        HStack(spacing: 12) {
+            Picker("间隔", selection: $interval) {
+                ForEach(UsageInterval.allCases) { interval in
+                    Text(interval.title).tag(interval)
+                }
+            }
+            Picker("分组", selection: $groupBy) {
+                ForEach(UsageGroupBy.allCases) { groupBy in
+                    Text(groupBy.title).tag(groupBy)
+                }
+            }
+            Picker("指标", selection: $metric) {
+                ForEach(UsageMetric.allCases) { metric in
+                    Text(metric.title).tag(metric)
+                }
+            }
+        }
+        .font(.caption)
+    }
+
+    private var usesWideLayout: Bool {
+#if os(macOS)
+        true
+#elseif os(iOS)
+        horizontalSizeClass == .regular
+#else
+        true
+#endif
     }
 
     @MainActor
@@ -190,6 +309,10 @@ private struct UsageChartContent: View {
     let range: UsageRange
     let interval: UsageInterval
     let metric: UsageMetric
+
+#if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+#endif
 
     private var buckets: [UsageBucket] {
         let calendar = Calendar.current
@@ -230,83 +353,135 @@ private struct UsageChartContent: View {
     }
 
     var body: some View {
-        List {
+        Group {
             if buckets.isEmpty {
                 ContentUnavailableView(
                     "暂无用量",
                     systemImage: "chart.bar.xaxis",
                     description: Text("客户端上报用量后会自动显示在这里。")
                 )
-                .listRowBackground(Color.clear)
-            } else {
-                Section {
-                    Chart(buckets) { bucket in
-                        ForEach(bucket.values) { value in
-                            BarMark(
-                                x: .value("时间", bucket.date),
-                                y: .value(metric.title, value.value)
-                            )
-                            .foregroundStyle(by: .value("系列", value.series))
+            } else if usesWideLayout {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        DashboardCard(title: "\(rangeDescription) · \(groupDescription)") {
+                            usageChart
+                                .frame(minHeight: 280)
                         }
-                    }
-                    .chartForegroundStyleScale(
-                        domain: series,
-                        range: series.map(usageSeriesColor)
-                    )
-                    .chartLegend(.hidden)
-                    .chartYScale(domain: .automatic(includesZero: true))
-                    .chartXAxis {
-                        AxisMarks(values: .automatic(desiredCount: interval == .day ? 5 : 6)) { _ in
-                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                            AxisValueLabel(format: interval == .day
-                                ? .dateTime.month(.defaultDigits).day()
-                                : .dateTime.hour())
-                                .font(.caption2)
-                        }
-                    }
-                    .chartYAxis {
-                        AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                            AxisValueLabel {
-                                Text(usageValue(value.as(Double.self) ?? 0))
-                                    .font(.caption2)
+
+                        HStack(alignment: .top, spacing: 16) {
+                            DashboardCard(title: "图例") {
+                                legendContent
                             }
-                        }
-                    }
-                    .frame(height: 260)
-                    .accessibilityLabel("\(metric.title)用量图")
-                    .accessibilityValue("\(rangeDescription)")
-                } header: {
-                    Text("\(rangeDescription) · \(groupDescription)")
-                }
+                            .frame(maxWidth: .infinity, alignment: .top)
 
-                Section("图例") {
-                    ForEach(series, id: \.self) { series in
-                        Label {
-                            Text(series)
-                        } icon: {
-                            Circle()
-                                .fill(usageSeriesColor(series))
-                                .frame(width: 9, height: 9)
+                            DashboardCard(title: metric == .tokens ? "总 Token" : "估算花费") {
+                                totalsContent
+                            }
+                            .frame(maxWidth: .infinity, alignment: .top)
                         }
+                    }
+                    .padding(20)
+                    .frame(maxWidth: 1400)
+                    .frame(maxWidth: .infinity)
+                }
+            } else {
+                List {
+                    Section {
+                        usageChart
+                            .frame(height: 260)
+                    } header: {
+                        Text("\(rangeDescription) · \(groupDescription)")
+                    }
+
+                    Section("图例") {
+                        legendContent
+                    }
+
+                    Section(metric == .tokens ? "总 Token" : "估算花费") {
+                        totalsContent
                     }
                 }
+#if os(macOS)
+                .listStyle(.inset)
+#else
+                .listStyle(.insetGrouped)
+#endif
+            }
+        }
+    }
 
-                Section(metric == .tokens ? "总 Token" : "估算花费") {
-                    ForEach(totals, id: \.series) { total in
-                        LabeledContent(total.series) {
-                            Text(usageValue(total.value))
-                                .monospacedDigit()
-                                .foregroundStyle(usageSeriesColor(total.series))
-                        }
-                    }
+    private var usageChart: some View {
+        Chart(buckets) { bucket in
+            ForEach(bucket.values) { value in
+                BarMark(
+                    x: .value("时间", bucket.date),
+                    y: .value(metric.title, value.value)
+                )
+                .foregroundStyle(by: .value("系列", value.series))
+            }
+        }
+        .chartForegroundStyleScale(
+            domain: series,
+            range: series.map(usageSeriesColor)
+        )
+        .chartLegend(.hidden)
+        .chartYScale(domain: .automatic(includesZero: true))
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: interval == .day ? 7 : 10)) { _ in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                AxisValueLabel(format: interval == .day
+                    ? .dateTime.month(.defaultDigits).day()
+                    : .dateTime.hour())
+                    .font(.caption2)
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 5)) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                AxisValueLabel {
+                    Text(usageValue(value.as(Double.self) ?? 0))
+                        .font(.caption2)
                 }
             }
         }
+        .accessibilityLabel("\(metric.title)用量图")
+        .accessibilityValue(rangeDescription)
+    }
+
+    private var legendContent: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), alignment: .leading)], spacing: 10) {
+            ForEach(series, id: \.self) { series in
+                Label {
+                    Text(series)
+                        .lineLimit(1)
+                } icon: {
+                    Circle()
+                        .fill(usageSeriesColor(series))
+                        .frame(width: 9, height: 9)
+                }
+            }
+        }
+    }
+
+    private var totalsContent: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), alignment: .leading)], spacing: 10) {
+            ForEach(totals, id: \.series) { total in
+                LabeledContent(total.series) {
+                    Text(usageValue(total.value))
+                        .monospacedDigit()
+                        .foregroundStyle(usageSeriesColor(total.series))
+                }
+            }
+        }
+    }
+
+    private var usesWideLayout: Bool {
 #if os(macOS)
-        .listStyle(.inset)
+        true
+#elseif os(iOS)
+        horizontalSizeClass == .regular
 #else
-        .listStyle(.insetGrouped)
+        true
 #endif
     }
 
@@ -324,6 +499,30 @@ private struct UsageChartContent: View {
             return (value / 1_000).formatted(.number.precision(.fractionLength(0...1))) + "k"
         }
         return value.formatted(.number.precision(.fractionLength(0...1)))
+    }
+}
+
+private struct DashboardCard<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title)
+                .font(.headline)
+            content
+        }
+        .padding(18)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(.secondary.opacity(0.2), lineWidth: 0.5)
+        }
     }
 }
 
