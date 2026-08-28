@@ -29,6 +29,25 @@ SwiftUI 额度客户端，共享一套业务代码支持：
 
 项目使用自动签名，Team 为项目 Build Settings 中的 `DEVELOPMENT_TEAM`。App 与 Widget 都需要启用 App Groups 和 Keychain Sharing；macOS Target 还需要 App Sandbox 的 Outgoing Connections 权限。
 
+## Xcode Cloud
+
+仓库已提交 `TokenDashboard` 共享 Scheme，并在 `ci_scripts/ci_post_clone.sh` 中加入克隆后的项目结构预检。首次连接 Xcode Cloud 仍需要由有权限的团队成员在 Xcode 中完成：
+
+1. 确认 Apple Developer 后台已注册以下 App ID，并为它们启用项目所用能力：
+   - `com.gouzuang.TokenDashboard`
+   - `com.gouzuang.TokenDashboard.Widget`
+   - `com.gouzuang.TokenDashboard.Clip`
+   - App Group `group.com.gouzuang.TokenDashboard`
+2. 在 Xcode 中登录 Team `4RN53WGN2C` 的 Apple Account，打开 `TokenDashboard.xcodeproj`。
+3. 打开 Report navigator，选择 Cloud > Get Started，将 GitHub 仓库授权给 Xcode Cloud。
+4. 产品与 Scheme 都选择 `TokenDashboard`。首次工作流建议保持简单：
+   - Start Condition：`main` 分支变更和目标为 `main` 的 Pull Request。
+   - Test：在 iOS Simulator 上运行 `TokenDashboardTests` 和 `TokenDashboardUITests`。
+   - Archive：在 `main` 分支归档 iOS；首个构建成功后再启用 TestFlight 分发。
+5. 如果 App Store Connect 中已有构建号，进入 Xcode Cloud > Settings > Build Number，将 Next Build Number 设为大于现有构建号的整数。本项目当前本地构建号为 `12`，因此可从 `13` 开始。
+
+主 Scheme 的 Archive 动作会自动包含 Widget 和 App Clip。Xcode Cloud 的工作流、仓库授权、签名资产和 TestFlight 分发设置保存在 Apple 服务端，不提交到 Git。
+
 ### App Clip
 
 选择 `TokenDashboardAppClip` Scheme 后可直接运行。共享 Scheme 默认使用以下测试调用 URL：
