@@ -11,6 +11,7 @@ let cursor;
 let minimax;
 let zai;
 let anyrouter;
+let anyrouterTop;
 let runAdapter;
 
 before(async () => {
@@ -23,7 +24,7 @@ before(async () => {
     platform: "browser",
     logLevel: "silent",
   });
-  ({ kimi, codex, cursor, minimax, zai, anyrouter } = await import("../dist/adapters.mjs").then((m) => m.adapters));
+  ({ kimi, codex, cursor, minimax, zai, anyrouter, anyrouter_top: anyrouterTop } = await import("../dist/adapters.mjs").then((m) => m.adapters));
   ({ runAdapter } = await import("../dist/adapters.mjs"));
 });
 
@@ -200,6 +201,15 @@ test("anyrouter: credits 余额与消费概况解析", async () => {
   assert.equal(rows.find((r) => r.metric === "today_cost_usd").value, 0.042);
 });
 
+test("anyrouter: 兼容粘贴完整 Authorization 头并清理空白", async () => {
+  const f = async (_url, init) => {
+    assert.equal(init.headers.Authorization, "Bearer sk-ar-v1-pasted");
+    return json({ balance: 1, currency: "usd" });
+  };
+  const rows = await anyrouter.fetch({ api_key: "  Authorization: Bearer sk-ar-v1-pasted\n" }, f);
+  assert.equal(rows[0].value, 1);
+});
+
 test("anyrouter: base_url 可覆盖且拒绝不安全地址", async () => {
   let seen = "";
   const f = async (url) => {
@@ -214,9 +224,57 @@ test("anyrouter: base_url 可覆盖且拒绝不安全地址", async () => {
 });
 
 test("anyrouter: credits API 错误转 scrape_error", async () => {
-  const rows = await runAdapter("anyrouter", { api_key: "bad" }, async () => json({}, 401));
+  const rows = await runAdapter(
+    "anyrouter",
+    { api_key: "bad" },
+    async () => json({ error: { code: "error_401", message: "Invalid or expired token" } }, 401),
+  );
   assert.equal(rows[0].metric, "scrape_error");
   assert.ok(String(rows[0].reset_at).includes("HTTP 401"));
+  assert.ok(String(rows[0].reset_at).includes("重新创建/轮换"));
+});
+
+test("anyrouter.top: NewAPI self 解析余额并发送 session/API User", async () => {
+  const f = async (url, init) => {
+    assert.equal(url, "https://anyrouter.top/api/user/self");
+    assert.equal(init.headers.Cookie, "session=session-test");
+    assert.equal(init.headers["New-Api-User"], "12345");
+    assert.equal(init.headers.Accept, "application/json, text/plain, */*");
+    return json({ success: true, data: { quota: 5_000_000, used_quota: "1500000", group: "普通" } });
+  };
+  const rows = await anyrouterTop.fetch({ session: "session-test", api_user: "12345" }, f);
+  assert.equal(rows.find((r) => r.metric === "balance_usd").value, 10);
+  assert.equal(rows.find((r) => r.metric === "used_usd").value, 3);
+});
+
+test("anyrouter.top: 兼容完整 Cookie 串、cookies.session 和 401 session 诊断", async () => {
+  const f = async (url, init) => {
+    assert.equal(url, "https://anyrouter.top/api/user/self");
+    assert.equal(init.headers.Cookie, "session=session-test; acw_sc__v2=waf-test");
+    return json({ success: true, data: { quota: 500_000 } });
+  };
+  const rows = await anyrouterTop.fetch(
+    { cookies: { session: "session-test" }, cookie: "session=session-test; acw_sc__v2=waf-test" },
+    f,
+  );
+  assert.equal(rows[0].value, 1);
+
+  const objectCookieRows = await anyrouterTop.fetch(
+    { cookies: { session: "session-test", acw_sc__v2: "waf-test" } },
+    async (_url, init) => {
+      assert.equal(init.headers.Cookie, "session=session-test; acw_sc__v2=waf-test");
+      return json({ success: true, data: { quota: 500_000 } });
+    },
+  );
+  assert.equal(objectCookieRows[0].value, 1);
+
+  const errorRows = await runAdapter(
+    "anyrouter_top",
+    { session: "expired" },
+    async () => json({ success: false, message: "未登录" }, 401),
+  );
+  assert.equal(errorRows[0].metric, "scrape_error");
+  assert.match(String(errorRows[0].reset_at), /session Cookie 已过期或无效/);
 });
 
 test("cursor: 分项池 auto/api + 总占比解析", async () => {

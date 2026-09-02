@@ -41,7 +41,11 @@ func TestClaudeCodeIncremental(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("want 2 rows, got %d", len(rows))
 	}
-	sonnet := rows[0]
+	byModel := make(map[string]aggregate.Row, len(rows))
+	for _, row := range rows {
+		byModel[row.Model] = row
+	}
+	sonnet := byModel["claude-sonnet-4-5"]
 	if sonnet.Model != "claude-sonnet-4-5" || sonnet.InputTokens != 100 || sonnet.OutputTokens != 20 {
 		t.Fatalf("bad sonnet row: %+v", sonnet)
 	}
@@ -51,7 +55,7 @@ func TestClaudeCodeIncremental(t *testing.T) {
 	if sonnet.CostUSD <= 0 {
 		t.Fatalf("cost should be estimated, got %v", sonnet.CostUSD)
 	}
-	if rows[1].Requests != 1 || sonnet.Requests != 1 {
+	if byModel["claude-opus-4-5"].Requests != 1 || sonnet.Requests != 1 {
 		t.Fatal("requests should be 1 per assistant msg")
 	}
 

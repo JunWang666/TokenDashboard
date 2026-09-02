@@ -7,7 +7,8 @@ import { mkdirSync } from "node:fs";
 
 let evaluate;
 
-const CFG = { enabled: true, lowThresholdPct: 90, resetSoonMinutes: 60 };
+// 设置项是“剩余百分比”；10% 剩余对应 90% 已用。
+const CFG = { enabled: true, lowThresholdPct: 10, resetSoonMinutes: 60 };
 const NOW = Date.parse("2026-08-27T07:00:00Z");
 
 function snap(value, extra = {}) {
@@ -37,7 +38,7 @@ test("quota_low：上穿阈值触发", () => {
   assert.equal(evs[0].kind, "quota_low");
   assert.equal(evs[0].dedupeKey, "low|kimi|weekly_used_pct|默认|2026-08-30T00:00:00Z");
   assert.equal(evs[0].title, "Kimi 额度快用完");
-  assert.equal(evs[0].body, "weekly_used_pct 已用 92%");
+  assert.equal(evs[0].body, "weekly_used_pct 剩余约 8%（已用 92%）");
 });
 
 test("quota_low：未达阈值不触发；恰好等于阈值触发", () => {

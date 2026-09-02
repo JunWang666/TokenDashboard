@@ -5,6 +5,7 @@ export const PROVIDERS: { id: string; name: string; color: string }[] = [
   { id: "minimax", name: "MiniMax Token Plan", color: "#f97316" },
   { id: "zai", name: "Z.ai Coding Plan", color: "#06b6d4" },
   { id: "anyrouter", name: "AnyRouter", color: "#7c3aed" },
+  { id: "anyrouter_top", name: "AnyRouter.top", color: "#6d28d9" },
   { id: "openai", name: "OpenAI", color: "#10a37f" },
   { id: "copilot", name: "GitHub Copilot", color: "#8957e5" },
   { id: "glm", name: "GLM", color: "#3b82f6" },
@@ -41,6 +42,7 @@ export function primaryQuotaMetric(provider: string): string {
     case "cursor":
       return "requests_used";
     case "anyrouter":
+    case "anyrouter_top":
       return "balance_usd";
     default:
       return "";

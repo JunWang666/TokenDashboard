@@ -35,11 +35,19 @@ func LoadCheckpoint(path string) *Checkpoint {
 	if err != nil {
 		return cp
 	}
-	if err := json.Unmarshal(b, cp); err != nil {
+	// Current format wraps the file map so the on-disk schema can evolve.
+	// Older clients wrote the map directly; keep loading that format so an
+	// upgrade never causes a full history rescan.
+	var current struct {
+		Files map[string]FileState `json:"files"`
+	}
+	if err := json.Unmarshal(b, &current); err == nil && current.Files != nil {
+		cp.Files = current.Files
 		return cp
 	}
-	if cp.Files == nil {
-		cp.Files = map[string]FileState{}
+	var legacy map[string]FileState
+	if err := json.Unmarshal(b, &legacy); err == nil && legacy != nil {
+		cp.Files = legacy
 	}
 	return cp
 }
@@ -76,7 +84,9 @@ func (cp *Checkpoint) Save() error {
 	if cp.path == "" {
 		return nil
 	}
-	b, err := json.MarshalIndent(cp.Files, "", "  ")
+	b, err := json.MarshalIndent(struct {
+		Files map[string]FileState `json:"files"`
+	}{Files: cp.Files}, "", "  ")
 	if err != nil {
 		return err
 	}

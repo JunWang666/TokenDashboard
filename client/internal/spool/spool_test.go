@@ -10,12 +10,12 @@ import (
 
 func row(id string) aggregate.Row {
 	return aggregate.Row{
-		Provider:   "claude",
-		Source:     "claude-code",
-		Model:      id,
-		BucketHour: time.Now().UTC().Truncate(time.Hour).Format("2006-01-02T15:04:05") + "Z",
+		Provider:    "claude",
+		Source:      "claude-code",
+		Model:       id,
+		BucketHour:  time.Now().UTC().Truncate(time.Hour).Format("2006-01-02T15:04:05") + "Z",
 		InputTokens: 1,
-		Requests:   1,
+		Requests:    1,
 	}
 }
 
@@ -53,6 +53,26 @@ func TestSpoolAppendDrainCycle(t *testing.T) {
 	}
 	if n, _ := s.Count(); n != 1 {
 		t.Fatal("rewritten row should persist")
+	}
+}
+
+func TestSpoolReadAllDoesNotClearUntilAck(t *testing.T) {
+	s := New(t.TempDir())
+	if err := s.Append([]aggregate.Row{row("pending")}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.ReadAll()
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("read pending rows: len=%d err=%v", len(rows), err)
+	}
+	if n, _ := s.Count(); n != 1 {
+		t.Fatal("ReadAll should leave rows pending")
+	}
+	if err := s.Clear(); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := s.Count(); n != 0 {
+		t.Fatal("Clear should acknowledge pending rows")
 	}
 }
 

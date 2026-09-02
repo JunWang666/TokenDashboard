@@ -58,7 +58,10 @@ app.get("/healthz", (c) => c.json({ ok: true, ts: new Date().toISOString() }));
 const api = new Hono<{ Bindings: Env }>();
 api.use("*", authMiddleware);
 
-api.post("/ingest/usage", requireRole("user", "client"), ingest.postUsage);
+// The external runner service token already has access to decrypted provider
+// credentials. Allowing it to submit usage is a narrow compatibility path for
+// headless collectors without granting it any client read/settings routes.
+api.post("/ingest/usage", requireRole("user", "client", "runner"), ingest.postUsage);
 api.post("/ingest/quota", requireRole("runner"), ingest.postQuota);
 
 api.get("/summary", requireRole("user", "client"), query.summary);
@@ -80,6 +83,8 @@ api.put("/collect-webhook", requireRole("user"), settings.put);
 api.get("/push/vapid-public-key", requireRole("user", "client"), pushSubscriptions.vapidKey);
 api.post("/push/subscriptions", requireRole("user", "client"), pushSubscriptions.subscribe);
 api.delete("/push/subscriptions", requireRole("user", "client"), pushSubscriptions.unsubscribe);
+api.post("/push/subscriptions/status", requireRole("user", "client"), pushSubscriptions.subscriptionStatus);
+api.post("/push/test", requireRole("user", "client"), pushSubscriptions.testPush);
 api.get("/alerts/settings", requireRole("user", "client"), pushSubscriptions.getAlertSettings);
 api.put("/alerts/settings", requireRole("user"), pushSubscriptions.putAlertSettings);
 
@@ -90,6 +95,7 @@ api.put("/notify-channels", requireRole("user"), notify.putChannels);
 api.post("/collect", requireRole("user", "client"), async (c) => {
   try {
     const n = await collect(c.env, localFetch(c.env, c.executionCtx));
+    await runAlertSweepSafely(c.env);
     const runner = await settings.notifyRunner(c.env);
     return c.json({ ok: true, rows: n, runner });
   } catch (e) {
@@ -114,10 +120,19 @@ function localFetch(env: Env, ctx: ExecutionContext): typeof fetch {
   };
 }
 
+async function runAlertSweepSafely(env: Env): Promise<void> {
+  try {
+    await runAlertSweep(env);
+  } catch (error) {
+    console.error("tokendash alert sweep:", error);
+  }
+}
+
 /** 手动触发一轮额度采集（生产经 Access service token 保护） */
 app.get("/__trigger", authMiddleware, requireRole("user", "client"), async (c) => {
   try {
     const n = await collect(c.env, localFetch(c.env, c.executionCtx));
+    await runAlertSweepSafely(c.env);
     return c.json({ ok: true, rows: n });
   } catch (e) {
     return c.json({ ok: false, error: String(e) }, 500);

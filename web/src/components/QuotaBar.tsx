@@ -93,7 +93,8 @@ export function quotaDisplay(provider: string, rows: QuotaCurrentRow[] | undefin
       if (!s) return [];
       return [{ label: "套餐额度", value: s.value, limit: s.limit_value, unit: s.unit, resetAt: null, kind: "requests" }];
     }
-    case "anyrouter": {
+    case "anyrouter":
+    case "anyrouter_top": {
       const out: QuotaDisplay[] = [];
       for (const [metric, label] of [
         ["balance_usd", "余额"],

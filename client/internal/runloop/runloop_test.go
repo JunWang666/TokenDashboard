@@ -15,6 +15,7 @@ import (
 
 // TestOnceEndToEnd 全链路：JSONL → 采集 → 聚合 → spool → 上传到假 hub。
 func TestOnceEndToEnd(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	projects := filepath.Join(t.TempDir(), ".claude", "projects", "d1")
 	if err := os.MkdirAll(projects, 0o755); err != nil {
 		t.Fatal(err)
@@ -69,6 +70,30 @@ func TestOnceEndToEnd(t *testing.T) {
 	if got[0].InputTokens != 42 || got[0].CacheReadTokens != 100 || got[0].Source != "claude-code" {
 		t.Fatalf("bad row: %+v", got[0])
 	}
+	appendFile, err := os.OpenFile(f.Name(), os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := appendFile.WriteString(`{"type":"assistant","message":{"model":"claude-sonnet-4-5","usage":{"input_tokens":10,"output_tokens":2}}}` + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	appendFile.Close()
+
+	if err := r.Once(); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("second scan should upload one updated absolute row, got %d total rows", len(got))
+	}
+	if got[1].InputTokens != 52 || got[1].OutputTokens != 10 || got[1].Requests != 2 {
+		t.Fatalf("second upload should contain cumulative bucket totals, got %+v", got[1])
+	}
+	if err := r.Once(); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("third scan should not upload the same row again, got %d total rows", len(got))
+	}
 
 	// 状态里应记录成功同步
 	st, err := r.Status()
@@ -80,5 +105,8 @@ func TestOnceEndToEnd(t *testing.T) {
 	}
 	if st["spool_backlog"] != 0 {
 		t.Fatal("spool should be drained")
+	}
+	if st["checkpoint_files"] != 1 {
+		t.Fatalf("expected one checkpoint file, got %v", st["checkpoint_files"])
 	}
 }

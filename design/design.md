@@ -1,7 +1,7 @@
 # TokenDashboard 设计文档
 
 > 追踪个人 token 使用量与 token plan 额度的系统。
-> 服务商范围：Anthropic Claude（订阅）、OpenAI（API 额度）、AnyRouter、GitHub Copilot、MiniMax Token Plan、Z.ai / GLM Coding Plan、Kimi、DeepSeek、Cursor。
+> 服务商范围：Anthropic Claude（订阅）、OpenAI（API 额度）、AnyRouter / AnyRouter.top、GitHub Copilot、MiniMax Token Plan、Z.ai / GLM Coding Plan、Kimi、DeepSeek、Cursor。
 > 客户端用 Go 解析本地工具日志；个人使用（单 Cloudflare 账号、单用户维度，device 区分多台机器）。
 
 ## 1. 总体架构
@@ -50,7 +50,7 @@
 CREATE TABLE usage_hourly (
   id                 INTEGER PRIMARY KEY AUTOINCREMENT,
   device_id          TEXT NOT NULL,             -- 采集设备，如 "macbook-m4"
-  provider           TEXT NOT NULL,             -- claude / openai / anyrouter / copilot / glm / deepseek / cursor / codex / kimi / minimax / zai
+  provider           TEXT NOT NULL,             -- claude / openai / anyrouter / anyrouter_top / copilot / glm / deepseek / cursor / codex / kimi / minimax / zai
   source             TEXT NOT NULL,             -- claude-code / cursor / runner
   model              TEXT,                      -- claude-sonnet-4-5 等
   bucket_hour        TEXT NOT NULL,             -- ISO 小时桶 "2026-08-12T14:00:00Z"
@@ -67,7 +67,7 @@ CREATE TABLE usage_hourly (
 -- plan 额度快照（runner 采集，append-only）
 CREATE TABLE quota_snapshots (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  provider    TEXT NOT NULL,        -- claude / openai / anyrouter / copilot / glm / deepseek / cursor / codex / kimi / minimax / zai
+  provider    TEXT NOT NULL,        -- claude / openai / anyrouter / anyrouter_top / copilot / glm / deepseek / cursor / codex / kimi / minimax / zai
   metric      TEXT NOT NULL,        -- 见下表
   value       REAL NOT NULL,        -- 当前值（已用量 / 余额 / 百分比）
   limit_value REAL,                 -- 上限（若可获取）
@@ -109,7 +109,8 @@ CREATE TABLE credentials (
 | glm | `balance_cny` | API 余额 |
 | deepseek | `balance_usd`（或 cny） | API 余额 |
 | cursor | `requests_used` | 订阅内请求用量 |
-| anyrouter | `balance_usd`、`monthly_balance_usd`、`topup_balance_usd`、`used_usd`、`today_cost_usd` | credits 余额与消费概况 |
+| anyrouter | `balance_usd`、`monthly_balance_usd`、`topup_balance_usd`、`used_usd`、`today_cost_usd` | anyrouter.dev credits 余额与消费概况 |
+| anyrouter_top | `balance_usd`、`used_usd` | anyrouter.top NewAPI 余额与累计消费 |
 
 ### 存储选型：为什么是 D1 而不是 Durable Objects
 
@@ -362,7 +363,8 @@ interface QuotaAdapter {
 | copilot | `GET /copilot_internal/user`（社区常用，返回 premium quota） | GitHub user token |
 | claude | claude.ai 的 usage 接口（非官方，用 session cookie，可能失效需维护） | sessionKey |
 | cursor | cursor.com 的 usage 接口（非官方，session cookie） | session cookie |
-| anyrouter | 官方 `GET /api/v1/credits`，返回 credits 余额与消费概况 | AnyRouter LLM API Key（需允许 Management endpoint） |
+| anyrouter | `GET https://anyrouter.dev/api/v1/credits`，返回 credits 余额与消费概况 | AnyRouter.dev API Key |
+| anyrouter_top | `GET https://anyrouter.top/api/user/self`，返回 NewAPI quota/used_quota | anyrouter.top 登录 session Cookie + `New-Api-User` |
 
 非官方适配器要做容错：接口变动时记录错误快照（`metric = "scrape_error"`），web 端显示「数据过期/采集失败」而不是空白。
 

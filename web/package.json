@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "deploy": "cd .. && npm run deploy",
+    "test": "node --test --experimental-strip-types test/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

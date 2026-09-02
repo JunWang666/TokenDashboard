@@ -6,7 +6,9 @@ TokenDashboard 的 Cloudflare Worker 源码：Hono API、D1 存储、加密凭�
 
 ## 支持的 provider
 
-`codex`、`kimi`、`minimax`、`zai`、`claude`、`cursor`、`copilot`、`openai`、`deepseek`、`glm`、`anyrouter`。
+`codex`、`kimi`、`minimax`、`zai`、`claude`、`cursor`、`copilot`、`openai`、`deepseek`、`glm`、`anyrouter`、`anyrouter_top`。
+
+`anyrouter` 查询 `anyrouter.dev` 的 Credits API；`anyrouter_top` 查询 `anyrouter.top` 的 NewAPI `/api/user/self`，凭证为网页登录 `session` Cookie 和可选的 `api_user`。
 
 `minimax` 和 `zai` 默认使用国际站；凭证可以附带 `region: "cn"` 或安全的 HTTPS `base_url`。Kimi/Codex 在部分网络出口需要使用仓库根目录的 [`runner`](../runner/README.md) 外部采集器。
 
@@ -37,21 +39,23 @@ npm run dev
 | GET/PUT/PATCH/DELETE | `/api/v1/credentials/:provider` | user/client | 加密凭证管理 |
 | GET | `/api/v1/internal/credentials` | runner | runner 内部凭证接口 |
 | POST | `/api/v1/collect` | user/client | 立即采集 |
-| GET/POST/DELETE | `/api/v1/push/...` | user/client | 推送订阅管理 |
+| GET/POST/DELETE | `/api/v1/push/...` | user/client | 推送订阅、状态与测试发送 |
 | GET/PUT | `/api/v1/alerts/settings` | GET user/client，PUT user | 告警开关与阈值 |
 | GET/PUT | `/api/v1/notify-channels` | GET user/client，PUT user | 第三方通知渠道（飞书/Bark） |
 | GET | `/healthz` | 公开 | 健康检查 |
 
 ## 额度推送通知
 
-cron 每 15 分钟采集后会扫一轮额度告警（`quota_low` 越过阈值 / `reset_soon` 即将刷新 / `reset_done` 已刷新），按 `alert_events.dedupe_key` 去重后推送到 `push_subscriptions` 里的订阅。开关与阈值见 `GET/PUT /api/v1/alerts/settings`。
+cron 和手动采集后都会扫一轮额度告警（`quota_low` 剩余额度跌到阈值 / `reset_soon` 即将刷新 / `reset_done` 已刷新）。新事件按 `alert_events.dedupe_key` 去重，并为每个订阅写入 `push_deliveries`；临时网络错误、429 和 5xx 会退避重试，不会因为第一次发送失败而丢失。开关与“剩余百分比”阈值见 `GET/PUT /api/v1/alerts/settings`。
 
 secrets / vars：
 
-- web push（VAPID）：`node scripts/gen-vapid.mjs` 生成密钥对；`VAPID_PUBLIC_KEY` 可作普通 var，`VAPID_PRIVATE_KEY` 用 `npx wrangler secret put VAPID_PRIVATE_KEY` 写入；`VAPID_SUBJECT` 填 `mailto:` 联系方式。
-- iOS（APNs）：Apple Developer → Certificates, Identifiers & Profiles → Keys 新建启用 APNs 的 key，下载 `.p8`（只下一次）。`APNS_KEY_P8` 填 .p8 全文（含 BEGIN/END 行）、`APNS_KEY_ID` 填 key 的 10 位 ID、`APNS_TEAM_ID` 填 Team ID，均用 `wrangler secret put`；调试期 `APNS_USE_SANDBOX=1`。
+- web push（VAPID）：`node scripts/gen-vapid.mjs` 生成密钥对；`VAPID_PUBLIC_KEY` 可作普通 var，`VAPID_PRIVATE_KEY` 用 `npx wrangler secret put VAPID_PRIVATE_KEY` 写入；`VAPID_SUBJECT` 填 `mailto:` 联系方式。Hub 使用 RFC 8291 `aes128gcm` 消息格式。
+- iOS（APNs）：Apple Developer → Certificates, Identifiers & Profiles → Keys 新建启用 APNs 的 key，下载 `.p8`（只下一次）。`APNS_KEY_P8` 填 .p8 全文（含 BEGIN/END 行）、`APNS_KEY_ID` 填 key 的 10 位 ID、`APNS_TEAM_ID` 填 Team ID，均用 `wrangler secret put`。新版 App 会随 token 上报 `sandbox`/`production`，Hub 对每台设备选择正确 APNs 主机；`APNS_USE_SANDBOX=1` 只作为旧版 App 的兼容默认值。
 
-web 端订阅流程：`GET /api/v1/push/vapid-public-key` 取公钥 → 浏览器 `pushManager.subscribe({ applicationServerKey })` → 把 `subscription.endpoint` 与 `keys.p256dh/auth` POST 到 `/api/v1/push/subscriptions`（platform=web）。iOS 端把 APNs device token 以 platform=ios 注册到同一接口。
+web 端订阅流程：`GET /api/v1/push/vapid-public-key` 取公钥 → 浏览器 `pushManager.subscribe({ applicationServerKey })` → 把 `subscription.endpoint` 与 `keys.p256dh/auth` POST 到 `/api/v1/push/subscriptions`（platform=web）。iOS 端把 APNs device token 和签名环境以 platform=ios 注册到同一接口。
+
+客户端可用 `POST /api/v1/push/subscriptions/status`（body 为 `{ "endpoint": "..." }`）查看最近成功、错误与重试次数；`POST /api/v1/push/test` 使用相同 body，会立即发送诊断通知并返回 Web Push/APNs 的真实 HTTP 状态和错误原因。endpoint 不放进 URL，结构化日志也不会包含 endpoint、device token 或推送正文；为避免出站 APNs URL 在 trace 中携带 token，默认关闭 traces。
 
 ### 第三方通知渠道（飞书 / Bark）
 

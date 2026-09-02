@@ -92,6 +92,13 @@ struct CredentialProvider: Hashable, Identifiable, Sendable {
             cookieRecipe: nil
         ),
         .init(
+            id: "anyrouter_top", title: "AnyRouter.top",
+            primary: .init(key: "session", label: "session Cookie", placeholder: "session=..."),
+            extra: .init(key: "api_user", label: "New-Api-User（建议填写）", placeholder: "如 12345"),
+            hint: "使用 anyrouter.top 网页登录后的 session Cookie，不是 sk- API Key；若遇 WAF，请提供完整 Cookie 串。",
+            cookieRecipe: nil
+        ),
+        .init(
             id: "openai", title: "OpenAI",
             primary: .init(key: "api_key", label: "Admin/Org API Key", placeholder: "sk-..."),
             extra: nil,

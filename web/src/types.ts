@@ -97,6 +97,39 @@ export interface AlertSettings {
   resetSoonMinutes: number;
 }
 
+export interface PushDeliveryStatus {
+  status: "pending" | "sending" | "retry" | "sent" | "failed";
+  attempts: number;
+  lastAttemptAt: string | null;
+  sentAt: string | null;
+  httpStatus: number | null;
+  lastError: string | null;
+}
+
+export interface PushSubscriptionStatus {
+  platform: "web" | "ios";
+  environment: "sandbox" | "production" | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+  latestDelivery: PushDeliveryStatus | null;
+}
+
+export interface PushSubscriptionStatusResponse {
+  subscription: PushSubscriptionStatus | null;
+}
+
+export interface PushTestResponse {
+  ok: boolean;
+  retryable: boolean;
+  invalidSubscription: boolean;
+  status: number | null;
+  reason: string;
+  providerMessageId: string | null;
+}
+
 export interface NotifyChannels {
   feishu: { url: string | null; hasSecret: boolean };
   bark: { server: string | null; hasKey: boolean };

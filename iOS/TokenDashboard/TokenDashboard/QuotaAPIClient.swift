@@ -130,7 +130,7 @@ struct QuotaAPIClient: Sendable {
         return try await send(request, as: CredentialListResponse.self)
     }
 
-    func pushSubscribe(token: String) async throws {
+    func pushSubscribe(token: String, environment: String) async throws {
         var request = try makeRequest(
             pathComponents: ["api", "v1", "push", "subscriptions"],
             method: "POST",
@@ -138,7 +138,7 @@ struct QuotaAPIClient: Sendable {
         )
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(
-            PushSubscribeRequest(platform: "ios", endpoint: token)
+            PushSubscribeRequest(platform: "ios", endpoint: token, environment: environment)
         )
         let response = try await send(request, as: PushSubscriptionResponse.self)
         guard response.ok else {
@@ -160,6 +160,19 @@ struct QuotaAPIClient: Sendable {
         guard response.ok else {
             throw QuotaAPIError.pushSubscriptionFailed(response.error ?? "服务器未返回错误原因。")
         }
+    }
+
+    func pushTest(token: String) async throws -> PushTestResponse {
+        var request = try makeRequest(
+            pathComponents: ["api", "v1", "push", "test"],
+            method: "POST",
+            timeoutInterval: 20
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            PushUnsubscribeRequest(endpoint: token)
+        )
+        return try await send(request, as: PushTestResponse.self)
     }
 
     func createCredential(
@@ -358,6 +371,7 @@ private struct CredentialWriteRequest: Encodable, Sendable {
 private struct PushSubscribeRequest: Encodable, Sendable {
     let platform: String
     let endpoint: String
+    let environment: String
 }
 
 private struct PushUnsubscribeRequest: Encodable, Sendable {
@@ -367,6 +381,15 @@ private struct PushUnsubscribeRequest: Encodable, Sendable {
 private struct PushSubscriptionResponse: Decodable, Sendable {
     let ok: Bool
     let error: String?
+}
+
+struct PushTestResponse: Decodable, Sendable {
+    let ok: Bool
+    let retryable: Bool
+    let invalidSubscription: Bool
+    let status: Int?
+    let reason: String
+    let providerMessageId: String?
 }
 
 enum QuotaAPIError: LocalizedError {

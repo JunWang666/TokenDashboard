@@ -24,6 +24,7 @@ import {
 } from "../format";
 import { chartPalette, useTheme } from "../theme";
 import type { QuotaCurrentRow, QuotaHistoryRow } from "../types";
+import { buildQuotaChartData } from "../quotaChart";
 
 const HISTORY_DAYS = 14;
 
@@ -119,21 +120,19 @@ function KeyChart({ group, allCurrent }: { group: KeyGroup; allCurrent: QuotaCur
   const dual = pctMetrics.length > 0 && otherMetrics.length > 0;
 
   const data = useMemo(() => {
-    const byTime = new Map<string, Record<string, number | string>>();
-    for (const r of group.history) {
-      const d = parseUtcDate(r.captured_at);
-      if (Number.isNaN(d.getTime())) continue;
-      d.setSeconds(0, 0);
-      d.setMilliseconds(0);
-      const iso = d.toISOString();
-      const row = byTime.get(iso) ?? { t: iso, label: fmtShortTime(iso) };
-      row[r.metric] = r.value;
-      byTime.set(iso, row);
-    }
-    return [...byTime.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([, row]) => row);
+    return buildQuotaChartData(
+      group.history.map((r) => ({
+        capturedAt: parseUtcDate(r.captured_at).getTime(),
+        metric: r.metric,
+        value: r.value,
+      })),
+    );
   }, [group.history]);
+
+  const fmtChartTime = (value: number) => {
+    if (!Number.isFinite(value)) return String(value);
+    return fmtShortTime(new Date(value).toISOString());
+  };
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900/50">
@@ -189,7 +188,17 @@ function KeyChart({ group, allCurrent }: { group: KeyGroup; allCurrent: QuotaCur
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={data} margin={{ top: 8, right: dual ? 12 : 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={pal.grid} vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: pal.tick, fontSize: 11 }} tickLine={false} axisLine={{ stroke: pal.grid }} minTickGap={28} />
+            <XAxis
+              dataKey="t"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              tickFormatter={fmtChartTime}
+              tick={{ fill: pal.tick, fontSize: 11 }}
+              tickLine={false}
+              axisLine={{ stroke: pal.grid }}
+              minTickGap={28}
+            />
             {pctMetrics.length > 0 && (
               <YAxis
                 yAxisId="pct"
@@ -215,6 +224,7 @@ function KeyChart({ group, allCurrent }: { group: KeyGroup; allCurrent: QuotaCur
             <Tooltip
               contentStyle={{ background: pal.tooltipBg, border: `1px solid ${pal.tooltipBorder}`, borderRadius: 8, fontSize: 12 }}
               labelStyle={{ color: pal.tooltipText }}
+              labelFormatter={(value) => fmtChartTime(Number(value))}
               formatter={(value, name) => {
                 const metric = String(name);
                 return [fmtQuotaValue(Number(value ?? 0), unitOf(metric), metric), metricLabel(metric)];
@@ -234,7 +244,7 @@ function KeyChart({ group, allCurrent }: { group: KeyGroup; allCurrent: QuotaCur
                 stroke={metricColor(m)}
                 strokeWidth={2}
                 dot={false}
-                connectNulls
+                connectNulls={false}
                 isAnimationActive={false}
               />
             ))}

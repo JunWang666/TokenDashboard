@@ -4,6 +4,16 @@
   "main": "cloudflare-hub/src/index.ts",
   "compatibility_date": "2026-08-26",
   "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": false
+    }
+  },
   "triggers": {
     "crons": ["*/15 * * * *"]
   },
@@ -18,6 +28,12 @@
       "database_name": "tokendash",
       "database_id": "844c898f-9b50-4957-8e0b-49c60a175493",
       "migrations_dir": "cloudflare-hub/migrations"
+    }
+  ],
+  "vpc_services": [
+    {
+      "binding": "RUNNER_VPC",
+      "service_id": "01a0328e-b0a9-7592-8818-896b643960fe"
     }
   ],
   "vars": {

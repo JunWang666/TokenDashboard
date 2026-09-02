@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import type { Env } from "./index";
 
-const PROVIDERS = ["claude", "openai", "copilot", "glm", "deepseek", "cursor", "codex", "kimi", "minimax", "zai", "anyrouter", "gemini", "opencode"] as const;
+const PROVIDERS = ["claude", "openai", "copilot", "glm", "deepseek", "cursor", "codex", "kimi", "minimax", "zai", "anyrouter", "anyrouter_top", "gemini", "opencode"] as const;
 export const PROVIDER_SET: ReadonlySet<string> = new Set(PROVIDERS);
 
 export const MAX_BATCH = 1000;
@@ -19,7 +19,7 @@ export async function postUsage(c: Context<{ Bindings: Env }>): Promise<Response
   const deviceId = (body as { device_id?: unknown }).device_id;
   if (typeof deviceId !== "string" || !deviceId.trim()) return bad(c, "device_id required");
   const rows = (body as { rows?: unknown }).rows;
-  if (!Array.isArray(rows) || rows.length === 0) return bad(c, "rows required");
+  if (!Array.isArray(rows)) return bad(c, "rows required");
   if (rows.length > MAX_BATCH) return bad(c, `rows exceeds max batch ${MAX_BATCH}`);
 
   const stmts: D1PreparedStatement[] = [];

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import type { AlertSettings } from "../types";
+import type { AlertSettings, PushSubscriptionStatus } from "../types";
 
 /** VAPID 公钥 base64url → Uint8Array（pushManager.subscribe 的 applicationServerKey） */
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
@@ -23,11 +23,37 @@ function bufferToUrlBase64(buf: ArrayBuffer | null): string {
 const pushSupported =
   "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
 
+function subscriptionKeys(subscription: PushSubscription): { p256dh: string; auth: string } {
+  const p256dh = bufferToUrlBase64(subscription.getKey("p256dh"));
+  const auth = bufferToUrlBase64(subscription.getKey("auth"));
+  if (!p256dh || !auth) throw new Error("浏览器未返回推送密钥，请重试");
+  return { p256dh, auth };
+}
+
+function deliveryLabel(status: string): string {
+  switch (status) {
+    case "pending": return "等待发送";
+    case "sending": return "发送中";
+    case "retry": return "等待重试";
+    case "sent": return "已送达推送服务";
+    case "failed": return "发送失败";
+    default: return status;
+  }
+}
+
+function formatTime(value: string | null): string {
+  if (!value) return "暂无";
+  const normalized = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
 export default function PushNotificationCard() {
   const [permission, setPermission] = useState<NotificationPermission>(
     pushSupported ? Notification.permission : "denied",
   );
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
+  const [serverStatus, setServerStatus] = useState<PushSubscriptionStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -36,16 +62,40 @@ export default function PushNotificationCard() {
   const [settingsMsg, setSettingsMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    if (!pushSupported) return;
-    navigator.serviceWorker.ready
-      .then((r) => r.pushManager.getSubscription())
-      .then((s) => setSubscribed(!!s))
-      .catch(() => setSubscribed(false));
     api
       .getAlertSettings()
       .then(setSettings)
       .catch(() => setSettings(null));
+
+    if (!pushSupported) return;
+    navigator.serviceWorker.ready
+      .then((registration) => registration.pushManager.getSubscription())
+      .then(async (subscription) => {
+        setSubscribed(Boolean(subscription));
+        if (!subscription) {
+          setServerStatus(null);
+          return;
+        }
+
+        // A browser subscription can survive a D1 restore or an earlier Hub error.
+        // Recreate only a missing server record; preserve existing delivery health.
+        let status = await api.getPushSubscriptionStatus(subscription.endpoint);
+        if (!status.subscription) {
+          await api.pushSubscribe(subscription.endpoint, subscriptionKeys(subscription));
+          status = await api.getPushSubscriptionStatus(subscription.endpoint);
+        }
+        setServerStatus(status.subscription);
+      })
+      .catch((error) => {
+        setSubscribed(false);
+        setMsg({ ok: false, text: `推送状态查询失败：${String(error)}` });
+      });
   }, []);
+
+  const refreshServerStatus = async (endpoint: string) => {
+    const status = await api.getPushSubscriptionStatus(endpoint);
+    setServerStatus(status.subscription);
+  };
 
   const subscribe = async () => {
     setBusy(true);
@@ -63,15 +113,20 @@ export default function PushNotificationCard() {
         return;
       }
       const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(key),
-      });
-      const p256dh = bufferToUrlBase64(subscription.getKey("p256dh"));
-      const auth = bufferToUrlBase64(subscription.getKey("auth"));
-      if (!p256dh || !auth) throw new Error("浏览器未返回推送密钥，请重试");
-      await api.pushSubscribe(subscription.endpoint, { p256dh, auth });
+      let subscription = await registration.pushManager.getSubscription();
+      if (subscription && serverStatus?.active === false) {
+        const oldEndpoint = subscription.endpoint;
+        await subscription.unsubscribe();
+        await api.pushUnsubscribe(oldEndpoint);
+        subscription = null;
+      }
+      subscription ??= await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(key),
+        });
+      await api.pushSubscribe(subscription.endpoint, subscriptionKeys(subscription));
       setSubscribed(true);
+      await refreshServerStatus(subscription.endpoint);
       setMsg({ ok: true, text: "已开启浏览器推送" });
     } catch (e) {
       setMsg({ ok: false, text: String(e) });
@@ -92,9 +147,31 @@ export default function PushNotificationCard() {
         await api.pushUnsubscribe(endpoint);
       }
       setSubscribed(false);
+      setServerStatus(null);
       setMsg({ ok: true, text: "已关闭浏览器推送" });
     } catch (e) {
       setMsg({ ok: false, text: String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendTest = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (!subscription) throw new Error("浏览器订阅不存在，请重新开启通知");
+      const result = await api.testPush(subscription.endpoint);
+      await refreshServerStatus(subscription.endpoint);
+      setMsg(
+        result.ok
+          ? { ok: true, text: "测试通知已交给浏览器推送服务" }
+          : { ok: false, text: `测试失败：${result.reason}` },
+      );
+    } catch (error) {
+      setMsg({ ok: false, text: String(error) });
     } finally {
       setBusy(false);
     }
@@ -146,7 +223,11 @@ export default function PushNotificationCard() {
             {subscribed === null ? (
               "查询中…"
             ) : subscribed ? (
-              <span className="text-emerald-600 dark:text-emerald-400">已订阅</span>
+              serverStatus?.active === false ? (
+                <span className="text-red-500">服务端已停用</span>
+              ) : (
+                <span className="text-emerald-600 dark:text-emerald-400">已订阅</span>
+              )
             ) : (
               "未订阅"
             )}
@@ -156,13 +237,32 @@ export default function PushNotificationCard() {
         {pushSupported && (
           <div className="flex flex-wrap items-center gap-3">
             {subscribed ? (
-              <button
-                onClick={unsubscribe}
-                disabled={busy}
-                className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-500 transition-colors hover:bg-red-500/10 dark:text-red-400 disabled:opacity-40"
-              >
-                {busy ? "处理中…" : "关闭通知"}
-              </button>
+              <>
+                <button
+                  onClick={unsubscribe}
+                  disabled={busy}
+                  className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-500 transition-colors hover:bg-red-500/10 dark:text-red-400 disabled:opacity-40"
+                >
+                  {busy ? "处理中…" : "关闭通知"}
+                </button>
+                {serverStatus?.active === false ? (
+                  <button
+                    onClick={subscribe}
+                    disabled={busy}
+                    className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-slate-950 transition-colors hover:bg-emerald-400 disabled:opacity-40"
+                  >
+                    重新建立订阅
+                  </button>
+                ) : (
+                  <button
+                    onClick={sendTest}
+                    disabled={busy}
+                    className="rounded-lg border border-emerald-500/40 px-3 py-1.5 text-sm text-emerald-600 transition-colors hover:bg-emerald-500/10 dark:text-emerald-400 disabled:opacity-40"
+                  >
+                    发送测试通知
+                  </button>
+                )}
+              </>
             ) : (
               <button
                 onClick={subscribe}
@@ -173,6 +273,25 @@ export default function PushNotificationCard() {
               </button>
             )}
             {msg && <span className={`text-xs ${msg.ok ? "text-emerald-500" : "text-red-500"}`}>{msg.text}</span>}
+          </div>
+        )}
+
+        {subscribed && serverStatus && (
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-950/60 dark:text-slate-400">
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              <span>最近成功：{formatTime(serverStatus.lastSuccessAt)}</span>
+              {serverStatus.latestDelivery && (
+                <span>
+                  最近投递：{deliveryLabel(serverStatus.latestDelivery.status)}
+                  {serverStatus.latestDelivery.attempts > 1 ? `（${serverStatus.latestDelivery.attempts} 次）` : ""}
+                </span>
+              )}
+            </div>
+            {(serverStatus.lastError || serverStatus.latestDelivery?.lastError) && (
+              <p className="mt-1 break-all text-red-500">
+                {serverStatus.latestDelivery?.lastError ?? serverStatus.lastError}
+              </p>
+            )}
           </div>
         )}
 

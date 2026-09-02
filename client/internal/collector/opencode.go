@@ -169,9 +169,11 @@ func normalizeOpenCodeProvider(raw, model string) string {
 		return "copilot"
 	case p == "cursor":
 		return "cursor"
+	case strings.Contains(p, "anyrouter.top"):
+		return "anyrouter_top"
 	case p == "anyrouter" || strings.Contains(p, "anyrouter"):
 		return "anyrouter"
-	case p == "claude" || p == "openai" || p == "gemini" || p == "deepseek" || p == "kimi" || p == "minimax" || p == "glm" || p == "zai" || p == "codex" || p == "copilot" || p == "cursor" || p == "anyrouter":
+	case p == "claude" || p == "openai" || p == "gemini" || p == "deepseek" || p == "kimi" || p == "minimax" || p == "glm" || p == "zai" || p == "codex" || p == "copilot" || p == "cursor" || p == "anyrouter" || p == "anyrouter_top":
 		return p
 	default:
 		return "opencode"

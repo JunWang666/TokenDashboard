@@ -5,6 +5,8 @@ import type {
   DevicesResponse,
   NotifyChannels,
   NotifyChannelsPatch,
+  PushSubscriptionStatusResponse,
+  PushTestResponse,
   QuotaCurrentResponse,
   QuotaHistoryResponse,
   SummaryResponse,
@@ -85,6 +87,13 @@ export const api = {
     }),
   pushUnsubscribe: (endpoint: string) =>
     req<{ ok: boolean }>(`/api/v1/push/subscriptions`, { method: "DELETE", body: JSON.stringify({ endpoint }) }),
+  getPushSubscriptionStatus: (endpoint: string) =>
+    req<PushSubscriptionStatusResponse>(`/api/v1/push/subscriptions/status`, {
+      method: "POST",
+      body: JSON.stringify({ endpoint }),
+    }),
+  testPush: (endpoint: string) =>
+    req<PushTestResponse>(`/api/v1/push/test`, { method: "POST", body: JSON.stringify({ endpoint }) }),
   getAlertSettings: () => req<AlertSettings>(`/api/v1/alerts/settings`),
   putAlertSettings: (patch: Partial<AlertSettings>) =>
     req<AlertSettings>(`/api/v1/alerts/settings`, { method: "PUT", body: JSON.stringify(patch) }),

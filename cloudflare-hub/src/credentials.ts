@@ -130,8 +130,10 @@ export async function del(c: Context<{ Bindings: Env }>): Promise<Response> {
   // 连带清掉该 key 的额度快照，避免已删 key 的数据继续显示在总览/额度页
   if (name) {
     await env.DB.prepare(`DELETE FROM quota_snapshots WHERE provider = ? AND account = ?`).bind(provider, name).run();
+    await env.DB.prepare(`DELETE FROM quota_current WHERE provider = ? AND account = ?`).bind(provider, name).run();
   } else {
     await env.DB.prepare(`DELETE FROM quota_snapshots WHERE provider = ?`).bind(provider).run();
+    await env.DB.prepare(`DELETE FROM quota_current WHERE provider = ?`).bind(provider).run();
   }
   return c.json({ ok: true, deleted: res.meta.changes });
 }

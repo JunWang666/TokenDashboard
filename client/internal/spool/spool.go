@@ -46,8 +46,9 @@ func (s *Spool) Append(rows []aggregate.Row) error {
 	return nil
 }
 
-// Drain 读取全部未上传行并清空文件（上传方在成功后才调用）。
-func (s *Spool) Drain() ([]aggregate.Row, error) {
+// ReadAll 读取全部未上传行，但不清空。上传方完成远端写入和本地累计值
+// 落盘后再 Clear，避免进程在两者之间退出造成数据丢失。
+func (s *Spool) ReadAll() ([]aggregate.Row, error) {
 	f, err := os.Open(s.path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -73,10 +74,46 @@ func (s *Spool) Drain() ([]aggregate.Row, error) {
 	if err := sc.Err(); err != nil {
 		return nil, err
 	}
+	return rows, nil
+}
+
+// Clear 清空已确认的行。
+func (s *Spool) Clear() error {
 	if err := os.Truncate(s.path, 0); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// Drain 保留给调用方与测试使用；上传流程应使用 ReadAll + Clear。
+func (s *Spool) Drain() ([]aggregate.Row, error) {
+	rows, err := s.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Clear(); err != nil {
 		return nil, err
 	}
 	return rows, nil
+}
+
+func (s *Spool) Size() (int64, error) {
+	fi, err := os.Stat(s.path)
+	if os.IsNotExist(err) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return fi.Size(), nil
+}
+
+// Truncate rolls an append back when the checkpoint cannot be committed.
+func (s *Spool) Truncate(size int64) error {
+	if err := os.Truncate(s.path, size); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // Count 返回积压行数。

@@ -15,6 +15,17 @@ function finite(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Accept an API key pasted as either the raw secret or an Authorization header. */
+function apiKeyFromCredential(cred: Record<string, string>): string | null {
+  const raw = cred.api_key ?? cred.token ?? cred.value;
+  if (!raw) return null;
+
+  let value = raw.trim();
+  value = value.replace(/^authorization\s*:\s*/i, "").trim();
+  value = value.replace(/^bearer\s+/i, "").trim();
+  return value || null;
+}
+
 function secureBaseURL(raw: string): string {
   let url: URL;
   try {
@@ -32,15 +43,26 @@ function secureBaseURL(raw: string): string {
 export const anyrouter: QuotaAdapter = {
   provider: "anyrouter",
   async fetch(cred, f) {
-    const apiKey = cred.api_key ?? cred.token;
-    if (!apiKey) throw new Error("missing credential: api_key（AnyRouter LLM Key）");
+    const apiKey = apiKeyFromCredential(cred);
+    if (!apiKey) throw new Error("missing credential: api_key（AnyRouter LLM Key 或 Management Key）");
 
-    const base = secureBaseURL(cred.base_url ?? "https://anyrouter.dev/api/v1");
+    const base = secureBaseURL((cred.base_url ?? "https://anyrouter.dev/api/v1").trim());
     const res = await f(`${base}/credits`, {
       headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
     });
     if (!res.ok) {
-      throw new Error(`anyrouter credits: HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      const detail = (await res.text()).slice(0, 200);
+      if (res.status === 401) {
+        throw new Error(
+          `anyrouter credits: HTTP 401：API key 无效、已过期、已撤销或复制不完整；请在 AnyRouter 控制台重新创建/轮换 sk-ar-v1-... key。${detail ? ` 原始响应: ${detail}` : ""}`,
+        );
+      }
+      if (res.status === 403) {
+        throw new Error(
+          `anyrouter credits: HTTP 403：当前 key 没有 /api/v1/credits 权限；请开启 Management/credits 权限，或使用带 read:credits 的 ak_ 管理 key。${detail ? ` 原始响应: ${detail}` : ""}`,
+        );
+      }
+      throw new Error(`anyrouter credits: HTTP ${res.status}: ${detail}`);
     }
 
     const json = (await res.json()) as AnyRouterCredits;

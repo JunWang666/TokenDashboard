@@ -100,6 +100,7 @@ struct QuotaAccountEntity: AppEntity, Hashable {
         case "minimax": "MiniMax Token Plan"
         case "zai": "Z.ai Coding Plan"
         case "anyrouter": "AnyRouter"
+        case "anyrouter_top": "AnyRouter.top"
         default: provider.capitalized
         }
     }

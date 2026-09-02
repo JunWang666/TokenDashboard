@@ -43,7 +43,7 @@ struct QuotaCurrentResponse: Codable {
                 if !splitPools.isEmpty { return splitPools }
                 if let plan = by("plan_used_pct") { return [plan] }
                 return existing(["requests_used"])
-            case "anyrouter":
+            case "anyrouter", "anyrouter_top":
                 return existing([
                     "balance_usd",
                     "monthly_balance_usd",
@@ -257,6 +257,7 @@ struct QuotaGroup: Identifiable {
         case "minimax": return "MiniMax Token Plan"
         case "zai": return "Z.ai Coding Plan"
         case "anyrouter": return "AnyRouter"
+        case "anyrouter_top": return "AnyRouter.top"
         default: return provider.capitalized
         }
     }
@@ -285,7 +286,7 @@ struct QuotaGroup: Identifiable {
     }
 
     private static let providerOrder = [
-        "claude", "codex", "kimi", "minimax", "zai", "anyrouter",
+        "claude", "codex", "kimi", "minimax", "zai", "anyrouter", "anyrouter_top",
         "openai", "copilot", "glm", "deepseek", "cursor",
     ]
 

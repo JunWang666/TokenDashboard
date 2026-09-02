@@ -53,8 +53,19 @@ const CRED_FIELDS: Record<
   anyrouter: {
     field: "api_key",
     label: "AnyRouter API Key",
-    placeholder: "sk-ar-v1-...",
-    hint: "需要启用 key 的 Management 权限以访问 /api/v1/credits；如需自建转发，可由客户端推送 JSON：{\"api_key\":\"...\",\"base_url\":\"https://你的转发/api/v1\"}",
+    placeholder: "sk-ar-v1-... 或 ak_...",
+    hint: "额度查询可填 sk-ar-v1-...（需开启 /api/v1/credits 的 Management 权限）或 ak_... 管理 key（需 read:credits）；如需自建转发，可由客户端推送 JSON：{\"api_key\":\"...\",\"base_url\":\"https://你的转发/api/v1\"}",
+  },
+  anyrouter_top: {
+    field: "session",
+    label: "AnyRouter.top session Cookie",
+    placeholder: "session=... 或完整 Cookie 串",
+    extra: {
+      field: "api_user",
+      label: "New-Api-User（建议填写）",
+      placeholder: "如 12345",
+    },
+    hint: "AnyRouter.top 使用网页登录 session，不是 sk- API Key。登录 anyrouter.top 后从 F12 → Application → Cookies 复制 session；再从 Network 请求复制 New-Api-User。若 Worker 被 WAF 拦截，可粘贴包含 acw_sc__v2 的完整 Cookie 串，或推送 JSON：{\"session\":\"...\",\"api_user\":\"12345\",\"base_url\":\"https://anyrouter.top\"}",
   },
   cursor: {
     field: "session",

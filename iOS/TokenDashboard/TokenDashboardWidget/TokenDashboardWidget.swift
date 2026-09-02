@@ -54,7 +54,7 @@ private struct WidgetQuotaResponse: Decodable {
                 if !splitPools.isEmpty { return splitPools }
                 if let plan = by("plan_used_pct") { return [plan] }
                 return existing(["requests_used"])
-            case "anyrouter":
+            case "anyrouter", "anyrouter_top":
                 return existing([
                     "balance_usd", "monthly_balance_usd", "topup_balance_usd",
                     "today_cost_usd", "used_usd",
@@ -161,6 +161,7 @@ private struct WidgetQuotaRow: Codable, Identifiable, Hashable {
         case "minimax": "MiniMax Token Plan"
         case "zai": "Z.ai Coding Plan"
         case "anyrouter": "AnyRouter"
+        case "anyrouter_top": "AnyRouter.top"
         default: provider.capitalized
         }
     }

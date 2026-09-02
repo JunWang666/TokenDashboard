@@ -67,7 +67,13 @@ func (a *Aggregator) Rows() []Row {
 		if rows[i].BucketHour != rows[j].BucketHour {
 			return rows[i].BucketHour < rows[j].BucketHour
 		}
-		return rows[i].Provider < rows[j].Provider
+		if rows[i].Provider != rows[j].Provider {
+			return rows[i].Provider < rows[j].Provider
+		}
+		if rows[i].Source != rows[j].Source {
+			return rows[i].Source < rows[j].Source
+		}
+		return rows[i].Model < rows[j].Model
 	})
 	return rows
 }

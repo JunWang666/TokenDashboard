@@ -93,39 +93,61 @@ func (r *Runner) Once() error {
 			r.Logf("[%s] 采集失败: %v", c.Name(), err)
 		}
 	}
-	if err := cp.Save(); err != nil {
-		return err
-	}
-
-	rows := agg.Rows()
-	if len(rows) > 0 {
-		if err := spool.New(r.StateDir).Append(rows); err != nil {
+	deltas := agg.Rows()
+	s := spool.New(r.StateDir)
+	if len(deltas) > 0 {
+		totals := state.LoadUsageTotals(state.UsageTotalsPath(r.StateDir))
+		pending, err := s.ReadAll()
+		if err != nil {
+			return fmt.Errorf("spool read: %w", err)
+		}
+		totals.Overlay(pending)
+		rows := totals.Add(deltas)
+		originalSize, err := s.Size()
+		if err != nil {
+			return fmt.Errorf("spool size: %w", err)
+		}
+		if err := s.Append(rows); err != nil {
 			return fmt.Errorf("spool append: %w", err)
 		}
+		if err := cp.Save(); err != nil {
+			if rollbackErr := s.Truncate(originalSize); rollbackErr != nil {
+				return fmt.Errorf("checkpoint save: %v; spool rollback: %w", err, rollbackErr)
+			}
+			return err
+		}
+	} else if err := cp.Save(); err != nil {
+		return err
 	}
-	r.Logf("本轮采集 %d 行", len(rows))
+	r.Logf("本轮采集 %d 行", len(deltas))
 	return r.Upload()
 }
 
 // Upload 排空 spool 并上报心跳。
 func (r *Runner) Upload() error {
 	s := spool.New(r.StateDir)
-	rows, err := s.Drain()
+	pending, err := s.ReadAll()
 	if err != nil {
 		return err
 	}
+	rows := state.CoalesceUsageRows(pending)
 	ls := state.LastSync{At: time.Now(), Rows: len(rows)}
 	if len(rows) > 0 {
 		n, err := r.Client.IngestUsage(rows)
 		if err != nil {
-			// 上传失败：行已经不在 spool（Drain 已清空）……
-			// 为不丢数据，重新写回 spool。
-			_ = s.Append(rows)
 			ls.Error = err.Error()
 			_ = state.SaveLastSync(r.StateDir, ls)
 			return err
 		}
 		ls.Rows = n
+		totals := state.LoadUsageTotals(state.UsageTotalsPath(r.StateDir))
+		totals.Overlay(rows)
+		if err := totals.Save(); err != nil {
+			return fmt.Errorf("usage totals save: %w", err)
+		}
+		if err := s.Clear(); err != nil {
+			return fmt.Errorf("spool clear: %w", err)
+		}
 	}
 	// 心跳即使无新行也上报（驱动 devices 表）
 	if err := r.Client.Heartbeat(); err != nil {

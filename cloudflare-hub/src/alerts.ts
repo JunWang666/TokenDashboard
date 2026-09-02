@@ -1,5 +1,6 @@
 import type { Env } from "./index";
 import { dispatchPush } from "./push";
+import type { PersistedAlertEvent } from "./push";
 import { dispatchNotify } from "./notify";
 
 /** 单条额度快照（alert 判定用到的字段） */
@@ -21,7 +22,7 @@ export interface SnapshotPair {
 
 export interface AlertConfig {
   enabled: boolean;
-  /** 已用百分比越过该阈值时触发 quota_low */
+  /** 剩余百分比下降到该阈值时触发 quota_low */
   lowThresholdPct: number;
   /** reset_at 距现在不超过该分钟数时触发 reset_soon */
   resetSoonMinutes: number;
@@ -45,7 +46,7 @@ const KEY_ENABLED = "alert_enabled";
 const KEY_LOW_PCT = "alert_low_threshold_pct";
 const KEY_SOON_MIN = "alert_reset_soon_minutes";
 
-/** 读告警配置：未写入 settings 表时用默认值（开 / 90% / 60 分钟） */
+/** 读告警配置：未写入 settings 表时用默认值（开 / 剩余 10% / 60 分钟） */
 export async function readAlertConfig(env: Env): Promise<AlertConfig> {
   const { results } = await env.DB.prepare(`SELECT key, value FROM settings WHERE key IN (?, ?, ?)`)
     .bind(KEY_ENABLED, KEY_LOW_PCT, KEY_SOON_MIN)
@@ -58,7 +59,7 @@ export async function readAlertConfig(env: Env): Promise<AlertConfig> {
   };
   return {
     enabled: (m[KEY_ENABLED] ?? "1") !== "0",
-    lowThresholdPct: num(m[KEY_LOW_PCT], 90),
+    lowThresholdPct: num(m[KEY_LOW_PCT], 10),
     resetSoonMinutes: num(m[KEY_SOON_MIN], 60),
   };
 }
@@ -83,8 +84,10 @@ export function evaluate(pairs: SnapshotPair[], cfg: AlertConfig, now: number): 
     const pct = isPercent(latest, metric);
     const base = `${provider}|${metric}|${account}`;
 
-    // 额度快用完：百分比指标上穿阈值（上升沿，prev 已在阈值之上不再重复）
-    if (pct && prev && prev.value < cfg.lowThresholdPct && latest.value >= cfg.lowThresholdPct) {
+    // 指标存的是已用百分比；设置项表达剩余百分比，因此先换算成已用阈值。
+    const usedThresholdPct = 100 - cfg.lowThresholdPct;
+    if (pct && prev && prev.value < usedThresholdPct && latest.value >= usedThresholdPct) {
+      const remainingPct = Math.max(0, 100 - latest.value);
       out.push({
         dedupeKey: `low|${base}|${latest.reset_at ?? "nr"}`,
         kind: "quota_low",
@@ -92,7 +95,7 @@ export function evaluate(pairs: SnapshotPair[], cfg: AlertConfig, now: number): 
         metric,
         account,
         title: `${label} 额度快用完`,
-        body: `${metric} 已用 ${Math.round(latest.value)}%`,
+        body: `${metric} 剩余约 ${Math.round(remainingPct)}%（已用 ${Math.round(latest.value)}%）`,
       });
     }
 
@@ -128,42 +131,54 @@ export function evaluate(pairs: SnapshotPair[], cfg: AlertConfig, now: number): 
   return out;
 }
 
-/** cron 后扫一轮：取每个 (provider, metric, account) 最近两条快照，评估告警并推送新事件 */
+interface CurrentSnapshotRow {
+  provider: string;
+  metric: string;
+  account: string;
+  value: number;
+  unit: string | null;
+  reset_at: string | null;
+  captured_at: string;
+  previous_snapshot_id: number | null;
+  previous_value: number | null;
+  previous_unit: string | null;
+  previous_reset_at: string | null;
+  previous_captured_at: string | null;
+}
+
+/** cron 后只读物化状态表，评估每组最新/上一条额度并推送新事件。 */
 export async function runAlertSweep(env: Env): Promise<void> {
   const { results } = await env.DB.prepare(
     `SELECT provider, metric, account, value, unit, reset_at, captured_at,
-            ROW_NUMBER() OVER (
-              PARTITION BY provider, metric, account ORDER BY captured_at DESC, id DESC
-            ) AS rn
-       FROM quota_snapshots`,
-  ).all<{
-    provider: string;
-    metric: string;
-    account: string | null;
-    value: number;
-    unit: string | null;
-    reset_at: string | null;
-    captured_at: string;
-    rn: number;
-  }>();
+            previous_snapshot_id, previous_value, previous_unit,
+            previous_reset_at, previous_captured_at
+       FROM quota_current`,
+  ).all<CurrentSnapshotRow>();
 
-  // 按分组拼 prev/latest
-  const pairs = new Map<string, SnapshotPair>();
-  for (const r of results) {
-    if (r.rn > 2) continue;
-    const k = `${r.provider}|${r.metric}|${r.account ?? ""}`;
-    let p = pairs.get(k);
-    if (!p) {
-      p = { provider: r.provider, metric: r.metric, account: r.account ?? "", prev: null, latest: r };
-      pairs.set(k, p);
-    }
-    if (r.rn === 1) p.latest = r;
-    else p.prev = r;
-  }
+  const pairs: SnapshotPair[] = results.map((r) => ({
+    provider: r.provider,
+    metric: r.metric,
+    account: r.account,
+    latest: {
+      value: r.value,
+      unit: r.unit,
+      reset_at: r.reset_at,
+      captured_at: r.captured_at,
+    },
+    prev:
+      r.previous_snapshot_id == null
+        ? null
+        : {
+            value: Number(r.previous_value),
+            unit: r.previous_unit,
+            reset_at: r.previous_reset_at,
+            captured_at: r.previous_captured_at ?? r.captured_at,
+          },
+  }));
 
   const cfg = await readAlertConfig(env);
-  const events = evaluate([...pairs.values()], cfg, Date.now());
-  const fresh: AlertEvent[] = [];
+  const events = evaluate(pairs, cfg, Date.now());
+  const fresh: PersistedAlertEvent[] = [];
   for (const e of events) {
     const r = await env.DB.prepare(
       `INSERT OR IGNORE INTO alert_events (dedupe_key, kind, provider, metric, account, title, body)
@@ -171,15 +186,19 @@ export async function runAlertSweep(env: Env): Promise<void> {
     )
       .bind(e.dedupeKey, e.kind, e.provider, e.metric, e.account, e.title, e.body)
       .run();
-    if (r.meta.changes > 0) fresh.push(e); // 已存在（本周期推过）则跳过
+    if (r.meta.changes > 0) {
+      fresh.push({ ...e, id: Number(r.meta.last_row_id) }); // 已存在（本周期推过）则跳过
+    }
+  }
+
+  // 即使这轮没有新事件，也要继续处理之前留下的 retry 投递。
+  try {
+    await dispatchPush(env, fresh);
+  } catch (e) {
+    console.error("tokendash dispatch push:", e); // 推送失败不影响采集主流程
   }
 
   if (fresh.length > 0) {
-    try {
-      await dispatchPush(env, fresh);
-    } catch (e) {
-      console.error("tokendash dispatch push:", e); // 推送失败不影响采集主流程
-    }
     try {
       await dispatchNotify(env, fresh); // 飞书 webhook / Bark 等第三方渠道
     } catch (e) {

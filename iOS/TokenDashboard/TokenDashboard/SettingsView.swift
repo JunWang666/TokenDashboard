@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import Combine
 import SwiftUI
 
 struct SettingsView: View {
@@ -18,6 +19,9 @@ struct SettingsView: View {
     @State private var isShowingWebLogin = false
 #if os(iOS)
     @State private var pushEnabled: Bool
+    @State private var pushStatus: String
+    @State private var pushStatusIsError: Bool
+    @State private var isTestingPush = false
 #endif
 
     init(settings: AppSettings) {
@@ -29,6 +33,8 @@ struct SettingsView: View {
         _developerToken = State(initialValue: settings.developerToken)
 #if os(iOS)
         _pushEnabled = State(initialValue: AppDelegate.isEnabled)
+        _pushStatus = State(initialValue: AppDelegate.statusMessage)
+        _pushStatusIsError = State(initialValue: AppDelegate.statusIsError)
 #endif
     }
 
@@ -120,10 +126,32 @@ struct SettingsView: View {
                                 AppDelegate.setEnabled(false)
                             }
                         }
+                    LabeledContent("连接状态") {
+                        Text(pushStatus)
+                            .foregroundStyle(pushStatusIsError ? Color.red : Color.secondary)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    if pushEnabled {
+                        HStack {
+                            Button("重试注册", systemImage: "arrow.clockwise") {
+                                persistDraft(mode: authMode)
+                            }
+                            Spacer()
+                            Button("发送测试通知", systemImage: "bell.badge") {
+                                persistDraft(mode: authMode, retryPush: false)
+                                isTestingPush = true
+                                Task {
+                                    defer { isTestingPush = false }
+                                    try? await AppDelegate.sendTestPush()
+                                }
+                            }
+                            .disabled(isTestingPush)
+                        }
+                    }
                 } header: {
                     Text("推送通知")
                 } footer: {
-                    Text("开启后，Hub 会在额度变动时向本设备推送提醒；通知授权被系统拒绝时开关会自动保持关闭。")
+                    Text("Debug 包使用 APNs sandbox，Release 包使用 production。状态会显示 token 是否成功同步到 Hub；测试按钮会返回 APNs 的具体错误。")
                 }
 #endif
 
@@ -158,6 +186,12 @@ struct SettingsView: View {
             .frame(minWidth: 720, idealWidth: 860, minHeight: 600, idealHeight: 720)
 #endif
         }
+#if os(iOS)
+        .onReceive(NotificationCenter.default.publisher(for: .pushRegistrationStatusDidChange)) { _ in
+            pushStatus = AppDelegate.statusMessage
+            pushStatusIsError = AppDelegate.statusIsError
+        }
+#endif
     }
 
     private var hasValidHubURL: Bool {
@@ -167,7 +201,7 @@ struct SettingsView: View {
         return ["http", "https"].contains(url.scheme?.lowercased() ?? "") && url.host != nil
     }
 
-    private func persistDraft(mode: AuthenticationMode) {
+    private func persistDraft(mode: AuthenticationMode, retryPush: Bool = true) {
         settings.update(
             hubURL: hubURL,
             authMode: mode,
@@ -175,10 +209,15 @@ struct SettingsView: View {
             accessClientSecret: accessClientSecret,
             developerToken: developerToken
         )
+#if os(iOS)
+        if retryPush && pushEnabled {
+            AppDelegate.retrySubscription()
+        }
+#endif
     }
 
     private func beginWebLogin(clearExisting: Bool) {
-        persistDraft(mode: .webAccess)
+        persistDraft(mode: .webAccess, retryPush: false)
         Task {
             if clearExisting {
                 settings.clearWebAccessCookie()

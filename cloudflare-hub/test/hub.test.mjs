@@ -36,7 +36,14 @@ before(async () => {
   });
   db = await mf.getD1Database("DB");
   // miniflare 的 D1 exec 逐行解析，压成单行语句
-  for (const f of ["migrations/0001_init.sql", "migrations/0002_multi_key.sql"]) {
+  for (const f of [
+    "migrations/0001_init.sql",
+    "migrations/0002_multi_key.sql",
+    "migrations/0003_settings.sql",
+    "migrations/0004_push.sql",
+    "migrations/0005_push_delivery.sql",
+    "migrations/0006_quota_current.sql",
+  ]) {
     const sql = readFileSync(f, "utf8")
       .split("\n")
       .filter((l) => !l.trim().startsWith("--"))
@@ -119,9 +126,10 @@ test("rejects anonymous API calls", async () => {
 });
 
 test("role enforcement", async () => {
-  assert.equal((await post("/api/v1/ingest/usage", usageBody, runner)).status, 403);
-  assert.equal((await post("/api/v1/ingest/quota", { rows: [] }, user)).status, 403);
-  assert.equal((await get("/api/v1/internal/credentials", user)).status, 403);
+	assert.equal((await post("/api/v1/ingest/usage", usageBody, runner)).status, 200);
+	assert.equal((await get("/api/v1/devices", runner)).status, 403);
+	assert.equal((await post("/api/v1/ingest/quota", { rows: [] }, user)).status, 403);
+	assert.equal((await get("/api/v1/internal/credentials", user)).status, 403);
 });
 
 test("usage ingest as user + client, idempotent upsert", async () => {
@@ -140,6 +148,85 @@ test("usage ingest as user + client, idempotent upsert", async () => {
   // devices 心跳
   const dev = await (await get("/api/v1/devices", user)).json();
   assert.ok(dev.rows.find((r) => r.device_id === "macbook-m4").last_seen_at);
+});
+
+test("empty usage batch records a heartbeat without usage rows", async () => {
+  const res = await post("/api/v1/ingest/usage", { device_id: "idle-headless", rows: [] }, runner);
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).rows, 0);
+
+  const devices = await (await get("/api/v1/devices", user)).json();
+  assert.ok(devices.rows.find((r) => r.device_id === "idle-headless").last_seen_at);
+});
+
+test("iOS push records APNs environment and exposes actionable test status", async () => {
+  const token = "ab".repeat(32);
+  const subscribed = await post(
+    "/api/v1/push/subscriptions",
+    { platform: "ios", endpoint: token, environment: "sandbox" },
+    client,
+  );
+  assert.equal(subscribed.status, 200);
+  assert.equal((await subscribed.json()).environment, "sandbox");
+
+  const status = await (await post("/api/v1/push/subscriptions/status", { endpoint: token }, client)).json();
+  assert.equal(status.subscription.platform, "ios");
+  assert.equal(status.subscription.environment, "sandbox");
+  assert.equal(status.subscription.active, true);
+
+  // The test endpoint must return the actual configuration problem instead of swallowing it.
+  const diagnostic = await post("/api/v1/push/test", { endpoint: token }, client);
+  assert.equal(diagnostic.status, 200);
+  const result = await diagnostic.json();
+  assert.equal(result.ok, false);
+  assert.equal(result.retryable, true);
+  assert.match(result.reason, /APNS_KEY_P8/);
+
+  assert.equal(
+    (await post(
+      "/api/v1/push/subscriptions",
+      { platform: "ios", endpoint: token, environment: "invalid" },
+      client,
+    )).status,
+    400,
+  );
+  await get("/api/v1/push/subscriptions", {
+    method: "DELETE",
+    body: JSON.stringify({ endpoint: token }),
+    headers: { "Content-Type": "application/json", ...client.headers },
+  });
+});
+
+test("manual collection evaluates remaining quota and leaves retryable delivery durable", async () => {
+  const token = "cd".repeat(32);
+  await post(
+    "/api/v1/push/subscriptions",
+    { platform: "ios", endpoint: token, environment: "production" },
+    client,
+  );
+  await db.prepare(
+    `INSERT INTO quota_snapshots (provider, metric, account, value, unit, captured_at)
+     VALUES ('pushcheck', 'weekly_used_pct', '默认', 80, 'percent', '2026-08-28 10:00:00'),
+            ('pushcheck', 'weekly_used_pct', '默认', 95, 'percent', '2026-08-28 10:01:00')`,
+  ).run();
+
+  const trigger = await get("/__trigger", user);
+  assert.equal(trigger.status, 200);
+  const delivery = await db.prepare(
+    `SELECT d.status, d.attempts, d.last_error, e.body
+       FROM push_deliveries d JOIN alert_events e ON e.id = d.event_id
+      WHERE e.provider = 'pushcheck'`,
+  ).first();
+  assert.equal(delivery.status, "retry");
+  assert.equal(delivery.attempts, 1);
+  assert.match(delivery.last_error, /APNS_KEY_P8/);
+  assert.match(delivery.body, /剩余约 5%/);
+
+  await get("/api/v1/push/subscriptions", {
+    method: "DELETE",
+    body: JSON.stringify({ endpoint: token }),
+    headers: { "Content-Type": "application/json", ...client.headers },
+  });
 });
 
 test("summary group_by day + SQL 注入防护", async () => {
@@ -205,8 +292,36 @@ test("quota ingest (runner) + current/history (user)", async () => {
   const cur2 = await (await get("/api/v1/quota/current", user)).json();
   assert.equal(cur2.rows.find((r) => r.provider === "claude").value, 41);
 
+  const state = await db.prepare(
+    `SELECT value, previous_value FROM quota_current
+      WHERE provider = 'claude' AND metric = 'weekly_used_pct' AND account = '默认'`,
+  ).first();
+  assert.equal(state.value, 41);
+  assert.equal(state.previous_value, 32.5);
+
   const hist = await (await get("/api/v1/quota/history?provider=claude&metric=weekly_used_pct", user)).json();
   assert.deepEqual(hist.rows.map((r) => r.value), [32.5, 41]);
+
+  // Web 额度页的宽历史查询必须先枚举当前分组，再逐组命中复合索引。
+  const broad = await (await get("/api/v1/quota/history?from=2026-08-01T00:00:00Z", user)).json();
+  assert.deepEqual(broad.rows.filter((r) => r.provider === "claude").map((r) => r.value), [32.5, 41]);
+  assert.equal((await get("/api/v1/quota/history", user)).status, 400);
+
+  const { results: plan } = await db.prepare(
+    `EXPLAIN QUERY PLAN
+     SELECT id, provider, metric, account, value, captured_at
+       FROM quota_snapshots INDEXED BY idx_quota_latest
+      WHERE provider = ? AND metric = ? AND account = ? AND captured_at >= ?
+      ORDER BY captured_at ASC, id ASC`,
+  ).bind("claude", "weekly_used_pct", "默认", "2026-08-01T00:00:00Z").all();
+  assert.ok(plan.some((row) => String(row.detail).includes("idx_quota_latest")));
+
+  const { results: currentPlan } = await db.prepare(
+    `EXPLAIN QUERY PLAN
+     SELECT q.* FROM quota_current q
+      WHERE EXISTS (SELECT 1 FROM credentials c WHERE c.provider = q.provider AND c.name = q.account)`,
+  ).all();
+  assert.ok(currentPlan.every((row) => !String(row.detail).includes("quota_snapshots")));
 
   // 清理凭证（连带清掉 quota 快照），避免影响后续 credentials 测试
   await get("/api/v1/credentials/claude", { method: "DELETE", headers: user.headers });
@@ -331,10 +446,11 @@ test("credentials: PATCH 只更新提交字段，其余凭证字段保持不变"
   await get("/api/v1/credentials/kimi?name=组合凭证", { method: "DELETE", headers: user.headers });
 });
 
-test("新增套餐服务商: minimax / zai / anyrouter 凭证与额度均可入库", async () => {
+test("新增套餐服务商: minimax / zai / anyrouter / anyrouter.top 凭证与额度均可入库", async () => {
   await put("/api/v1/credentials/minimax", { payload: { api_key: "sk-cp-minimax" } }, user);
   await put("/api/v1/credentials/zai", { payload: { api_key: "zai-plan-key" } }, user);
   await put("/api/v1/credentials/anyrouter", { payload: { api_key: "sk-ar-v1-key" } }, user);
+  await put("/api/v1/credentials/anyrouter_top", { payload: { session: "session-key", api_user: "12345" } }, user);
 
   const internal = await (
     await get("/api/v1/internal/credentials", { headers: { "X-Tokendash-Internal": KEY_B64 } })
@@ -342,6 +458,8 @@ test("新增套餐服务商: minimax / zai / anyrouter 凭证与额度均可入�
   assert.equal(internal.minimax[0].api_key, "sk-cp-minimax");
   assert.equal(internal.zai[0].api_key, "zai-plan-key");
   assert.equal(internal.anyrouter[0].api_key, "sk-ar-v1-key");
+  assert.equal(internal.anyrouter_top[0].session, "session-key");
+  assert.equal(internal.anyrouter_top[0].api_user, "12345");
 
   const result = await post(
     "/api/v1/ingest/quota",
@@ -349,6 +467,7 @@ test("新增套餐服务商: minimax / zai / anyrouter 凭证与额度均可入�
       { provider: "minimax", metric: "weekly_used_pct", account: "默认", value: 35, unit: "percent" },
       { provider: "zai", metric: "session_used_pct", account: "默认", value: 42, unit: "percent" },
       { provider: "anyrouter", metric: "balance_usd", account: "默认", value: 9.73, unit: "usd" },
+      { provider: "anyrouter_top", metric: "balance_usd", account: "默认", value: 12.5, unit: "usd" },
     ] },
     runner,
   );
@@ -357,10 +476,12 @@ test("新增套餐服务商: minimax / zai / anyrouter 凭证与额度均可入�
   assert.equal(current.rows.find((r) => r.provider === "minimax").value, 35);
   assert.equal(current.rows.find((r) => r.provider === "zai").value, 42);
   assert.equal(current.rows.find((r) => r.provider === "anyrouter").value, 9.73);
+  assert.equal(current.rows.find((r) => r.provider === "anyrouter_top").value, 12.5);
 
   await get("/api/v1/credentials/minimax", { method: "DELETE", headers: user.headers });
   await get("/api/v1/credentials/zai", { method: "DELETE", headers: user.headers });
   await get("/api/v1/credentials/anyrouter", { method: "DELETE", headers: user.headers });
+  await get("/api/v1/credentials/anyrouter_top", { method: "DELETE", headers: user.headers });
 });
 
 test("本地采集器 provider: gemini / opencode 用量可入库", async () => {

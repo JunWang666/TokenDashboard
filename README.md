@@ -9,7 +9,7 @@
 ## 能做什么
 
 - 记录 Claude Code、Cursor 等本地工具的小时用量、token 分解和估算花费。
-- 采集 Codex、Kimi、MiniMax Token Plan、Z.ai/GLM Coding Plan、OpenAI、DeepSeek、GLM、AnyRouter、Copilot、Claude、Cursor 等额度。
+- 采集 Codex、Kimi、MiniMax Token Plan、Z.ai/GLM Coding Plan、OpenAI、DeepSeek、GLM、AnyRouter、AnyRouter.top、Copilot、Claude、Cursor 等额度。
 - 一个 Worker 同时托管 API、React 仪表盘和每 15 分钟一次的 cron 采集；D1 保存数据，凭证使用 AES-256-GCM 加密。
 - Go 桌面采集器支持离线 spool、重试和 Cloudflare Access 登录；iOS/iPadOS/macOS 客户端支持额度查看、立即采集和 Widget。
 - Kimi/Codex 可选用 Docker runner；它们的上游接口可能拦截 Cloudflare Workers 出口请求。
