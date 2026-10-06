@@ -14,3 +14,5 @@ xcuserdata/
 # Go
 client/tokendash
 client/build/
+hub-go/data/
+hub-go/hub
